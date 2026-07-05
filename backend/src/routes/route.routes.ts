@@ -16,6 +16,7 @@ router.get('/:id', ctrl.getById)
 
 // RF-09: Solo ADMIN puede crear/modificar rutas
 router.post('/', requireRole('ADMIN'), validate(createRouteSchema), ctrl.create)
+router.post('/:id/duplicate', requireRole('ADMIN'), ctrl.duplicate)
 router.put('/:id', requireRole('ADMIN'), validate(updateRouteSchema), ctrl.update)
 router.patch('/:id/deactivate', requireRole('ADMIN'), ctrl.deactivate)
 

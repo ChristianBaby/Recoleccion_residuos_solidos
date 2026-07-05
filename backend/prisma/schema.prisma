@@ -67,9 +67,9 @@ enum IncidentStatus {
 model User {
   id String @id @default(cuid())
 
-  email     String @unique
+  email     String  @unique
   password  String
-  dni       String @unique
+  dni       String  @unique
   firstName String
   lastName  String
   phone     String?
@@ -100,18 +100,18 @@ model User {
   // RF-12: Coordenadas del hogar y radio de alerta de proximidad
   homeLat     Float?
   homeLng     Float?
-  alertRadius Int   @default(500)
+  alertRadius Int    @default(500)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens    RefreshToken[]
-  assignedRoutes   Route[]         @relation("OperatorRoutes")
-  routeExecutions  RouteExecution[]
-  incidents        Incident[]
-  createdZones     Zone[]          @relation("AdminZones")
-  createdRoutes    Route[]         @relation("AdminRoutes")
-  learnVisits      LearnVisit[]
+  refreshTokens   RefreshToken[]
+  assignedRoutes  Route[]          @relation("OperatorRoutes")
+  routeExecutions RouteExecution[]
+  incidents       Incident[]
+  createdZones    Zone[]           @relation("AdminZones")
+  createdRoutes   Route[]          @relation("AdminRoutes")
+  learnVisits     LearnVisit[]
 
   @@index([email])
   @@index([dni])
@@ -160,14 +160,14 @@ model Zone {
 // ─── Módulo 2: Residuos ───────────────────────────────────────────────────────
 
 model WasteType {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  category    WasteCategory
-  description String?
-  colorCode   String
-  examples    String[]
+  id           String        @id @default(cuid())
+  name         String        @unique
+  category     WasteCategory
+  description  String?
+  colorCode    String
+  examples     String[]
   instructions String?
-  isActive    Boolean       @default(true)
+  isActive     Boolean       @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -242,14 +242,14 @@ model Route {
 }
 
 model Waypoint {
-  id          String  @id @default(cuid())
-  routeId     String
-  route       Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  order       Int
-  name        String?
-  description String?
-  lat         Float
-  lng         Float
+  id            String  @id @default(cuid())
+  routeId       String
+  route         Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  order         Int
+  name          String?
+  description   String?
+  lat           Float
+  lng           Float
   estimatedTime String?
 
   @@index([routeId])
@@ -269,19 +269,19 @@ model RouteWasteType {
 // ─── Módulo 3: Ejecución de Rutas y GPS ──────────────────────────────────────
 
 model RouteExecution {
-  id        String          @id @default(cuid())
-  routeId   String
-  route     Route           @relation(fields: [routeId], references: [id])
-  operatorId String
-  operator   User           @relation(fields: [operatorId], references: [id])
-  vehicleId  String
-  vehicle    Vehicle        @relation(fields: [vehicleId], references: [id])
-  date       DateTime
-  startedAt  DateTime?
-  endedAt    DateTime?
-  status     ExecutionStatus @default(IN_PROGRESS)
+  id           String          @id @default(cuid())
+  routeId      String
+  route        Route           @relation(fields: [routeId], references: [id])
+  operatorId   String
+  operator     User            @relation(fields: [operatorId], references: [id])
+  vehicleId    String
+  vehicle      Vehicle         @relation(fields: [vehicleId], references: [id])
+  date         DateTime
+  startedAt    DateTime?
+  endedAt      DateTime?
+  status       ExecutionStatus @default(IN_PROGRESS)
   delayMinutes Int?
-  notes      String?
+  notes        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,4 +345,30 @@ model Incident {
   @@index([citizenId])
   @@index([status])
   @@map("incidents")
+}
+
+// ─── Transversal: Auditoría (RF-03 / RF-04 / RF-09 — criterios éticos) ──────
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  // Quién realizó la acción (null si el actor fue el sistema)
+  actorId String?
+
+  // Qué se hizo: CREATE | UPDATE | DELETE | ASSIGN | DUPLICATE | ...
+  action String
+
+  // Sobre qué entidad: Zone | Route | User | ...
+  entity   String
+  entityId String
+
+  // Detalle legible + snapshot de los cambios
+  summary String
+  details Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@map("audit_logs")
 }

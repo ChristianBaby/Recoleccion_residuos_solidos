@@ -74,6 +74,37 @@ export async function sendZoneAssignedEmail(
   )
 }
 
+// RF-04.4: alerta al administrador cuando un ciudadano queda sin zona (pendiente)
+export async function sendPendingZoneAlertEmail(
+  to: string,
+  adminFirstName: string,
+  citizen: { firstName: string; lastName: string; email: string; district: string; address: string },
+) {
+  await sendMail(
+    to,
+    'Ciudadano pendiente de asignación de zona — Sistema de Recolección',
+    baseTemplate(`
+      <h2 style="color:#1e293b;font-size:18px;margin:0 0 16px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Asignación de zona pendiente</h2>
+      <p style="color:#475569;line-height:1.6;margin:0 0 16px;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        Estimado(a) <strong>${adminFirstName}</strong>, un nuevo ciudadano se registró pero su domicilio no pertenece a ninguna zona de recolección activa. Requiere asignación manual de zona.
+      </p>
+      <div style="background:#fffbeb;border-radius:6px;padding:20px;margin:0 0 24px;border:1px solid #fde68a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <p style="margin:0 0 4px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;">Ciudadano</p>
+        <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#1e293b;">${citizen.firstName} ${citizen.lastName}</p>
+        <p style="margin:0 0 4px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;">Correo</p>
+        <p style="margin:0 0 16px;font-size:14px;color:#475569;">${citizen.email}</p>
+        <p style="margin:0 0 4px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;">Distrito</p>
+        <p style="margin:0 0 16px;font-size:14px;color:#475569;">${citizen.district}</p>
+        <p style="margin:0 0 4px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;">Dirección</p>
+        <p style="margin:0;font-size:14px;color:#475569;">${citizen.address}</p>
+      </div>
+      <p style="color:#94a3b8;font-size:13px;text-align:center;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        Ingresa al panel de usuarios para asignarle una zona de recolección.
+      </p>
+    `),
+  )
+}
+
 export async function sendIncidentStatusEmail(
   to: string,
   firstName: string,

@@ -8,7 +8,7 @@ import type { ApiResponse, Route, Zone, Vehicle, Operator } from '@/types'
 import { toast } from 'sonner'
 import {
   Plus, Pencil, X, Route as RouteIcon, Loader2,
-  Trash2, Clock, MapPin, Truck, Map, MousePointerClick, CheckCircle2,
+  Trash2, Clock, MapPin, Truck, Map, MousePointerClick, CheckCircle2, Copy,
 } from 'lucide-react'
 import RouteMapModal from '@/components/RouteMapModal'
 import type { WaypointDraft } from '@/components/LeafletWaypointEditor'
@@ -251,6 +251,7 @@ export default function RoutesPage() {
   const [mapRouteId, setMapRouteId] = useState<string | null>(null)
   const [showMapEditor, setShowMapEditor] = useState(false)
   const [filterStatus, setFilterStatus] = useState('')
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
     if (!accessToken) return
@@ -390,6 +391,21 @@ export default function RoutesPage() {
       toast.error(err instanceof ApiError ? err.message : 'Error al guardar')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // RF-09.1: Duplicar ruta — la copia queda en borrador, sin operador ni vehículo
+  async function handleDuplicate(route: Route) {
+    if (!accessToken || duplicatingId) return
+    setDuplicatingId(route.id)
+    try {
+      const res = await api.post<ApiResponse<Route>>(`/routes/${route.id}/duplicate`, {}, accessToken)
+      toast.success(`Ruta duplicada como "${res.data?.name ?? route.name}" (borrador)`)
+      fetchAll()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Error al duplicar la ruta')
+    } finally {
+      setDuplicatingId(null)
     }
   }
 
@@ -560,6 +576,17 @@ export default function RoutesPage() {
                                 title="Editar"
                               >
                                 <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDuplicate(route)}
+                                disabled={duplicatingId !== null}
+                                className="p-1.5 rounded-lg hover:bg-teal-50 text-slate-400
+                                  hover:text-teal-700 transition-colors disabled:opacity-50"
+                                title="Duplicar"
+                              >
+                                {duplicatingId === route.id
+                                  ? <Loader2 size={13} className="animate-spin" />
+                                  : <Copy size={13} />}
                               </button>
                               {route.status !== 'INACTIVE' && (
                                 <button

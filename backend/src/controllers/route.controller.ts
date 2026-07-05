@@ -42,7 +42,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const route = await routeService.updateRoute(req.params['id'] as string, req.body)
+    const route = await routeService.updateRoute(req.params['id'] as string, req.body, req.user!.id)
     ok(res, route, 'Ruta actualizada exitosamente')
   } catch (err) {
     next(err)
@@ -51,8 +51,17 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function deactivate(req: Request, res: Response, next: NextFunction) {
   try {
-    const route = await routeService.deactivateRoute(req.params['id'] as string)
+    const route = await routeService.deactivateRoute(req.params['id'] as string, req.user!.id)
     ok(res, route, 'Ruta desactivada')
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function duplicate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const route = await routeService.duplicateRoute(req.params['id'] as string, req.user!.id)
+    ok(res, route, 'Ruta duplicada exitosamente')
   } catch (err) {
     next(err)
   }

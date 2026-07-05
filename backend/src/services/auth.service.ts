@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '../config/prisma'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt'
 import { generateSecureToken, addHours, addMinutes } from '../utils/crypto'
-import { sendVerificationEmail, sendPasswordResetEmail } from './email.service'
+import { sendVerificationEmail, sendPasswordResetEmail, sendPendingZoneAlertEmail } from './email.service'
 import type { RegisterInput, LoginInput } from '../validators/auth.validator'
 import { detectZoneByCoords } from './zone.service'
 
@@ -131,6 +131,30 @@ export async function registerUser(input: RegisterInput) {
     await sendVerificationEmail(user.email, user.firstName, verificationToken)
   } catch (emailErr) {
     console.error('Error enviando email de verificación:', emailErr)
+  }
+
+  // RF-04.4: si el ciudadano quedó sin zona (pendiente), alertar a los administradores.
+  // Best-effort: un fallo aquí nunca debe romper el registro.
+  if (!zoneId) {
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN', isActive: true },
+        select: { email: true, firstName: true },
+      })
+      await Promise.all(
+        admins.map((admin) =>
+          sendPendingZoneAlertEmail(admin.email, admin.firstName, {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            email: input.email,
+            district: input.district,
+            address: input.address,
+          }),
+        ),
+      )
+    } catch (alertErr) {
+      console.error('Error enviando alerta de zona pendiente a administradores:', alertErr)
+    }
   }
 
   return { message: 'Registro exitoso. Revisa tu correo para confirmar tu cuenta.' }

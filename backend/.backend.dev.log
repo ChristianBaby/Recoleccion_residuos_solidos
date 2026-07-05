@@ -1,0 +1,16 @@
+
+> ecorutas-backend@1.0.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 04:39:19 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+✅ Conectado a PostgreSQL
+[ERROR] 04:39:19 Error: listen EADDRINUSE: address already in use :::4000
+[INFO] 04:42:32 Restarting: D:\Proyectos\Ing de Sofware\recoleccion\backend\src\config\env.ts has been modified
+✅ Conectado a PostgreSQL
+[ERROR] 04:42:32 Error: listen EADDRINUSE: address already in use :::4000
+[INFO] 05:48:34 Restarting: D:\Proyectos\Ing de Sofware\recoleccion\backend\src\services\incident.service.ts has been modified
+✅ Conectado a PostgreSQL
+[ERROR] 05:48:34 Error: listen EADDRINUSE: address already in use :::4000
+[INFO] 05:59:32 Restarting: D:\Proyectos\Ing de Sofware\recoleccion\backend\src\services\incident.service.ts has been modified
+✅ Conectado a PostgreSQL
+[ERROR] 05:59:33 Error: listen EADDRINUSE: address already in use :::4000

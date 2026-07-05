@@ -298,26 +298,52 @@ export async function getCitizenParticipation(filters: { from?: string; to?: str
 
   const totalLearnVisits = learnVisits.length
 
+  const byZone = zones.map((z) => {
+    const inc = incidentsByZone.get(z.id)
+    const lv = learnByZone.get(z.id)
+    return {
+      zoneId: z.id,
+      zoneName: z.name,
+      district: z.district,
+      color: z.color,
+      citizenCount: citizensByZone.get(z.id) ?? 0,
+      incidents: {
+        total: inc?.total ?? 0,
+        open: inc?.open ?? 0,
+        resolved: inc?.resolved ?? 0,
+        byType: inc ? Object.fromEntries(inc.byType) : {} as Record<string, number>,
+      },
+      learnVisits: lv?.visits ?? 0,
+      learnUniqueUsers: lv ? lv.uniqueUsers.size : 0,
+    }
+  })
+
+  // RF-16.3: Recomendaciones automáticas de campañas de concientización.
+  // El índice de participación combina incidencias reportadas, consultas
+  // educativas y ciudadanos activos; las zonas por debajo del promedio
+  // reciben una recomendación de campaña/taller.
+  const participationIndexOf = (z: (typeof byZone)[number]) =>
+    z.citizenCount + z.incidents.total + z.learnVisits
+
+  const averageParticipation =
+    byZone.length > 0
+      ? byZone.reduce((sum, z) => sum + participationIndexOf(z), 0) / byZone.length
+      : 0
+
+  const recommendations = byZone
+    .filter((z) => participationIndexOf(z) < averageParticipation)
+    .map((z) => ({
+      zoneId: z.zoneId,
+      zoneName: z.zoneName,
+      district: z.district,
+      participationIndex: participationIndexOf(z),
+      averageIndex: Math.round(averageParticipation * 100) / 100,
+      message: `Zona ${z.zoneName} (${z.district}) presenta baja participación ciudadana: se recomienda una campaña de sensibilización y talleres de segregación de residuos dirigidos a sus vecinos.`,
+    }))
+
   return {
     summary: { totalCitizens, totalIncidents, totalLearnVisits },
-    byZone: zones.map((z) => {
-      const inc = incidentsByZone.get(z.id)
-      const lv = learnByZone.get(z.id)
-      return {
-        zoneId: z.id,
-        zoneName: z.name,
-        district: z.district,
-        color: z.color,
-        citizenCount: citizensByZone.get(z.id) ?? 0,
-        incidents: {
-          total: inc?.total ?? 0,
-          open: inc?.open ?? 0,
-          resolved: inc?.resolved ?? 0,
-          byType: inc ? Object.fromEntries(inc.byType) : {} as Record<string, number>,
-        },
-        learnVisits: lv?.visits ?? 0,
-        learnUniqueUsers: lv ? lv.uniqueUsers.size : 0,
-      }
-    }),
+    byZone,
+    recommendations,
   }
 }

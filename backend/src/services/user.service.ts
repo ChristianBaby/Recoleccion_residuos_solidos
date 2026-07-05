@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma'
 import { sendZoneAssignedEmail } from './email.service'
+import { logAudit } from './audit.service'
 import bcrypt from 'bcryptjs'
 
 export async function createStaffUser(input: {
@@ -76,7 +77,7 @@ export async function listUsers(filters?: { role?: string; hasZone?: boolean }) 
   })
 }
 
-export async function assignZone(userId: string, zoneId: string | null) {
+export async function assignZone(userId: string, zoneId: string | null, actorId?: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { email: true, firstName: true },
@@ -110,6 +111,18 @@ export async function assignZone(userId: string, zoneId: string | null) {
       console.error('Error enviando email de asignación de zona:', err)
     }
   }
+
+  // Criterio ético RF-04.3: constancia de la asignación manual de zona
+  await logAudit({
+    actorId,
+    action: 'ASSIGN',
+    entity: 'User',
+    entityId: userId,
+    summary: zoneId
+      ? `Zona "${zoneName}" asignada manualmente al usuario`
+      : 'Zona removida manualmente del usuario (queda pendiente)',
+    details: { zoneId },
+  })
 
   return updated
 }

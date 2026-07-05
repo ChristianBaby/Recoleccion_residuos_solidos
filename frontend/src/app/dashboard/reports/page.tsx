@@ -46,6 +46,15 @@ interface ComplianceRoute {
   missedStopsPct: number
 }
 
+interface ParticipationRecommendation {
+  zoneId: string
+  zoneName: string
+  district: string
+  participationIndex: number
+  averageIndex: number
+  message: string
+}
+
 interface ParticipationData {
   summary: { totalCitizens: number; totalIncidents: number; totalLearnVisits: number }
   byZone: {
@@ -58,6 +67,7 @@ interface ParticipationData {
     learnVisits: number
     learnUniqueUsers: number
   }[]
+  recommendations?: ParticipationRecommendation[]
 }
 
 // ─── Export helpers ───────────────────────────────────────────────────────────
@@ -563,6 +573,26 @@ const INCIDENT_LABELS: Record<string, string> = {
   OTHER: 'Otro',
 }
 
+// RF-16.2: escala de calor — intensidad proporcional al nivel de participación
+// (teal = alta, ámbar = media, rojo = baja)
+function heatCellClass(ratio: number): string {
+  if (ratio >= 0.85) return 'bg-teal-700 text-white'
+  if (ratio >= 0.65) return 'bg-teal-500 text-white'
+  if (ratio >= 0.5) return 'bg-teal-200 text-teal-950'
+  if (ratio >= 0.35) return 'bg-amber-200 text-amber-950'
+  if (ratio >= 0.15) return 'bg-amber-100 text-amber-900'
+  if (ratio > 0) return 'bg-red-100 text-red-900'
+  return 'bg-red-200 text-red-950'
+}
+
+const HEAT_LEGEND: { label: string; cls: string }[] = [
+  { label: 'Alta', cls: 'bg-teal-700' },
+  { label: 'Media-alta', cls: 'bg-teal-200' },
+  { label: 'Media', cls: 'bg-amber-200' },
+  { label: 'Baja', cls: 'bg-red-100 border border-red-200' },
+  { label: 'Nula', cls: 'bg-red-200' },
+]
+
 function ParticipationTab({
   accessToken,
   from,
@@ -616,6 +646,18 @@ function ParticipationTab({
   const lowParticipationZones = byZone.filter(
     (z) => z.citizenCount > 0 && z.incidents.total < 2 && z.learnVisits < 3,
   )
+
+  // RF-16.2: índice de participación por zona para el mapa de calor
+  const participationIndex = (z: ParticipationData['byZone'][number]) =>
+    z.citizenCount + z.incidents.total + z.learnVisits
+  const maxIndex = byZone.reduce((m, z) => Math.max(m, participationIndex(z)), 0)
+  const maxCitizens = byZone.reduce((m, z) => Math.max(m, z.citizenCount), 0)
+  const maxIncidents = byZone.reduce((m, z) => Math.max(m, z.incidents.total), 0)
+  const maxLearn = byZone.reduce((m, z) => Math.max(m, z.learnVisits), 0)
+  const ratio = (value: number, max: number) => (max > 0 ? value / max : 0)
+
+  // RF-16.3: recomendaciones automáticas calculadas por el backend
+  const recommendations = data?.recommendations ?? []
 
   return (
     <div className="space-y-6">
@@ -703,6 +745,93 @@ function ParticipationTab({
               </ResponsiveContainer>
             )}
           </div>
+
+          {/* RF-16.2: Mapa de calor de participación por zona */}
+          {byZone.length > 0 && (
+            <div className="bg-white rounded border border-slate-200 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Mapa de calor — Nivel de participación por zona
+                </h3>
+                {/* Leyenda */}
+                <div className="flex items-center gap-3">
+                  {HEAT_LEGEND.map((l) => (
+                    <span key={l.label} className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                      <span className={`w-3 h-3 rounded-sm shrink-0 ${l.cls}`} />
+                      {l.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[560px] border-separate border-spacing-1">
+                  <thead>
+                    <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">
+                      <th className="px-3 py-2">Zona</th>
+                      <th className="px-3 py-2 text-center">Ciudadanos</th>
+                      <th className="px-3 py-2 text-center">Incidencias</th>
+                      <th className="px-3 py-2 text-center">Consultas edu.</th>
+                      <th className="px-3 py-2 text-center">Índice de participación</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byZone.map((z) => {
+                      const idx = participationIndex(z)
+                      return (
+                        <tr key={z.zoneId}>
+                          <td className="px-3 py-2.5 bg-slate-50 rounded">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: z.color }} />
+                              <span className="font-semibold text-slate-800">{z.zoneName}</span>
+                              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{z.district}</span>
+                            </div>
+                          </td>
+                          <td className={`px-3 py-2.5 text-center font-bold rounded transition-colors ${heatCellClass(ratio(z.citizenCount, maxCitizens))}`}>
+                            {z.citizenCount}
+                          </td>
+                          <td className={`px-3 py-2.5 text-center font-bold rounded transition-colors ${heatCellClass(ratio(z.incidents.total, maxIncidents))}`}>
+                            {z.incidents.total}
+                          </td>
+                          <td className={`px-3 py-2.5 text-center font-bold rounded transition-colors ${heatCellClass(ratio(z.learnVisits, maxLearn))}`}>
+                            {z.learnVisits}
+                          </td>
+                          <td className={`px-3 py-2.5 text-center font-bold rounded transition-colors ${heatCellClass(ratio(idx, maxIndex))}`}>
+                            {idx}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-3">
+                Intensidad de color proporcional al nivel de participación (ciudadanos + incidencias + consultas educativas)
+              </p>
+            </div>
+          )}
+
+          {/* RF-16.3: Recomendaciones automáticas del backend */}
+          {recommendations.length > 0 && (
+            <div className="bg-white rounded border border-slate-200 p-5">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Recomendaciones</h3>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-4">
+                Campañas y talleres sugeridos para zonas con participación bajo el promedio
+              </p>
+              <ul className="space-y-2.5">
+                {recommendations.map((rec) => (
+                  <li
+                    key={rec.zoneId}
+                    className="flex items-start gap-3 bg-red-50/50 border border-red-100 rounded p-3.5"
+                  >
+                    <span className="mt-0.5 shrink-0 text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-800 px-2 py-0.5 rounded">
+                      Índice {rec.participationIndex} / prom. {rec.averageIndex}
+                    </span>
+                    <p className="text-xs text-slate-700 leading-relaxed">{rec.message}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Table */}
           {byZone.length > 0 && (

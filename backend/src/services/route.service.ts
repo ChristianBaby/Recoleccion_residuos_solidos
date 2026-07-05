@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma'
 import { sendRouteAssignedEmail } from './email.service'
+import { logAudit } from './audit.service'
 import type { CreateRouteInput, UpdateRouteInput } from '../validators/route.validator'
 
 // ─── RF-09: Listar rutas ──────────────────────────────────────────────────────
@@ -140,6 +141,17 @@ export async function createRoute(input: CreateRouteInput, adminId: string) {
     })
   })
 
+  if (createdRoute) {
+    await logAudit({
+      actorId: adminId,
+      action: 'CREATE',
+      entity: 'Route',
+      entityId: createdRoute.id,
+      summary: `Creó la ruta "${createdRoute.name}"`,
+      details: { zoneId: createdRoute.zoneId, status: createdRoute.status },
+    })
+  }
+
   if (createdRoute && createdRoute.operatorId && createdRoute.operator) {
     sendRouteAssignedEmail(
       createdRoute.operator.email,
@@ -155,7 +167,7 @@ export async function createRoute(input: CreateRouteInput, adminId: string) {
 
 // ─── RF-09: Actualizar ruta ───────────────────────────────────────────────────
 
-export async function updateRoute(id: string, input: UpdateRouteInput) {
+export async function updateRoute(id: string, input: UpdateRouteInput, actorId?: string) {
   const route = await prisma.route.findUnique({ where: { id } })
   if (!route) throw { status: 404, message: 'Ruta no encontrada' }
 
@@ -224,6 +236,17 @@ export async function updateRoute(id: string, input: UpdateRouteInput) {
     })
   })
 
+  if (updatedRoute) {
+    await logAudit({
+      actorId,
+      action: 'UPDATE',
+      entity: 'Route',
+      entityId: updatedRoute.id,
+      summary: `Actualizó la ruta "${updatedRoute.name}"`,
+      details: { changes: Object.keys(input) },
+    })
+  }
+
   // Si se asignó o actualizó el operador
   if (input.operatorId && updatedRoute && updatedRoute.operator) {
     sendRouteAssignedEmail(
@@ -240,14 +263,104 @@ export async function updateRoute(id: string, input: UpdateRouteInput) {
 
 // ─── RF-09: Desactivar ruta ───────────────────────────────────────────────────
 
-export async function deactivateRoute(id: string) {
+export async function deactivateRoute(id: string, actorId?: string) {
   const route = await prisma.route.findUnique({ where: { id } })
   if (!route) throw { status: 404, message: 'Ruta no encontrada' }
 
-  return prisma.route.update({
+  const deactivated = await prisma.route.update({
     where: { id },
     data: { status: 'INACTIVE' },
   })
+
+  await logAudit({
+    actorId,
+    action: 'DELETE',
+    entity: 'Route',
+    entityId: id,
+    summary: `Desactivó la ruta "${route.name}"`,
+    details: { previousStatus: route.status },
+  })
+
+  return deactivated
+}
+
+// ─── RF-09.1: Duplicar ruta ───────────────────────────────────────────────────
+
+export async function duplicateRoute(routeId: string, actorId: string) {
+  const original = await prisma.route.findUnique({
+    where: { id: routeId },
+    include: {
+      waypoints: { orderBy: { order: 'asc' } },
+      routeWasteTypes: true,
+    },
+  })
+  if (!original) throw { status: 404, message: 'Ruta no encontrada' }
+
+  const copyName = `${original.name} (copia)`
+
+  // La copia nace en DRAFT y sin operador/vehículo asignados para
+  // evitar conflictos de horario con la ruta original.
+  const duplicated = await prisma.$transaction(async (tx) => {
+    const route = await tx.route.create({
+      data: {
+        name: copyName,
+        status: 'DRAFT',
+        zoneId: original.zoneId,
+        createdById: actorId,
+        dayOfWeek: original.dayOfWeek,
+        startTime: original.startTime,
+        estimatedDuration: original.estimatedDuration,
+        ...(original.pathGeometry !== null && { pathGeometry: original.pathGeometry }),
+      },
+    })
+
+    if (original.waypoints.length) {
+      await tx.waypoint.createMany({
+        data: original.waypoints.map((wp) => ({
+          routeId: route.id,
+          order: wp.order,
+          name: wp.name,
+          description: wp.description,
+          lat: wp.lat,
+          lng: wp.lng,
+          estimatedTime: wp.estimatedTime,
+        })),
+      })
+    }
+
+    if (original.routeWasteTypes.length) {
+      await tx.routeWasteType.createMany({
+        data: original.routeWasteTypes.map((rwt) => ({
+          routeId: route.id,
+          wasteTypeId: rwt.wasteTypeId,
+        })),
+      })
+    }
+
+    return tx.route.findUnique({
+      where: { id: route.id },
+      include: {
+        zone: { select: { id: true, name: true } },
+        vehicle: { select: { id: true, plate: true } },
+        operator: { select: { id: true, firstName: true, lastName: true, email: true } },
+        waypoints: { orderBy: { order: 'asc' } },
+        routeWasteTypes: { include: { wasteType: { select: { id: true, name: true, category: true } } } },
+      },
+    })
+  })
+
+  if (duplicated) {
+    await logAudit({
+      actorId,
+      action: 'DUPLICATE',
+      entity: 'Route',
+      entityId: duplicated.id,
+      summary: `Duplicó la ruta "${original.name}" como "${copyName}"`,
+      details: { sourceRouteId: original.id },
+    })
+  }
+
+  return duplicated
 }
 
 // ─── Operadores disponibles (para dropdown en formulario de ruta) ─────────────

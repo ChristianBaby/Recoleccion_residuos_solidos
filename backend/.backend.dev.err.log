@@ -1,0 +1,20 @@
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at main (D:\Proyectos\Ing de Sofware\recoleccion\backend\src\index.ts:93:16)
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at main (D:\Proyectos\Ing de Sofware\recoleccion\backend\src\index.ts:93:16)
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at main (D:\Proyectos\Ing de Sofware\recoleccion\backend\src\index.ts:93:16)
+Error: listen EADDRINUSE: address already in use :::4000
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at main (D:\Proyectos\Ing de Sofware\recoleccion\backend\src\index.ts:93:16)

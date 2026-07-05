@@ -585,7 +585,7 @@ export default function ZonesPage() {
             </h3>
             
             <p className="text-xs text-slate-500 mt-2.5 mb-6 leading-relaxed">
-              ¿Estás seguro de que deseas eliminar la zona <strong className="text-slate-800 font-semibold">"{zoneToDelete.name}"</strong>? Esta acción desvinculará a los ciudadanos y eliminará todas las rutas y datos asociados de forma irreversible.
+              ¿Estás seguro de que deseas eliminar la zona <strong className="text-slate-800 font-semibold">"{zoneToDelete.name}"</strong>? La zona quedará inactiva y dejará de usarse para nuevas asignaciones, pero se conservará su historial de rutas, reportes y ciudadanos asociados.
             </p>
 
             <div className="flex gap-3 w-full">

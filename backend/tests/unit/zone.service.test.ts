@@ -1,41 +1,34 @@
 import { pointInPolygon } from '../../src/utils/geoUtils';
 import { createZone, deleteZone } from '../../src/services/zone.service';
 import { prisma } from '../../src/config/prisma';
+import { logAudit } from '../../src/services/audit.service';
 
 // Mock de Prisma Client
 jest.mock('../../src/config/prisma', () => {
   const mockPrisma: any = {
     zone: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
-      delete: jest.fn(),
     },
-    $transaction: jest.fn((callback: (tx: any) => any): any => callback(mockPrisma)),
     user: {
-      updateMany: jest.fn(),
-    },
-    learnVisit: {
-      updateMany: jest.fn(),
-    },
-    gpsTrack: {
-      deleteMany: jest.fn(),
-    },
-    routeExecution: {
-      deleteMany: jest.fn(),
-    },
-    waypoint: {
-      deleteMany: jest.fn(),
-    },
-    routeWasteType: {
-      deleteMany: jest.fn(),
-    },
-    route: {
-      deleteMany: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
     },
   };
   return { prisma: mockPrisma };
 });
+
+// Mock del servicio de auditoría (RF-03.1)
+jest.mock('../../src/services/audit.service', () => ({
+  logAudit: jest.fn().mockResolvedValue(undefined),
+}));
+
+// Mock del servicio de email (no se envían correos reales en pruebas)
+jest.mock('../../src/services/email.service', () => ({
+  sendZoneAssignedEmail: jest.fn().mockResolvedValue(undefined),
+}));
 
 describe('Pruebas Unitarias de Geolocalización - Punto en Polígono (HU-01 y HU-03)', () => {
   const testPolygonRing: [number, number][] = [
@@ -75,7 +68,13 @@ describe('Pruebas de Servicio CRUD de Zonas - Reglas de Negocio (HU-03)', () => 
 
   it('Debe crear la zona exitosamente si el nombre no existe', async () => {
     (prisma.zone.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.zone.create as jest.Mock).mockResolvedValue({ id: 'zone-123', name: 'Zona Cusco Centro' });
+    // Sin zonas activas existentes: no hay solapamiento posible
+    (prisma.zone.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.zone.create as jest.Mock).mockResolvedValue({
+      id: 'zone-123',
+      name: 'Zona Cusco Centro',
+      district: 'Cusco',
+    });
 
     const input = {
       name: 'Zona Cusco Centro',
@@ -109,6 +108,15 @@ describe('Pruebas de Servicio CRUD de Zonas - Reglas de Negocio (HU-03)', () => 
         createdById: 'admin-uuid-001',
       },
     });
+    // Criterio ético RF-03.1: la creación queda registrada en auditoría
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-uuid-001',
+        action: 'CREATE',
+        entity: 'Zone',
+        entityId: 'zone-123',
+      }),
+    );
   });
 
   it('Debe lanzar error 409 si el nombre de la zona ya existe en la base de datos', async () => {
@@ -140,33 +148,36 @@ describe('Pruebas de Servicio CRUD de Zonas - Reglas de Negocio (HU-03)', () => 
   });
 });
 
-describe('Pruebas de Servicio de Eliminación de Zonas (RF-03 / HU-03)', () => {
+describe('Pruebas de Servicio de Eliminación Lógica de Zonas (RF-03.5 / HU-03)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('Debe eliminar la zona exitosamente y limpiar las dependencias en cascada', async () => {
+  it('Debe eliminar la zona lógicamente (isActive = false) preservando el historial', async () => {
     (prisma.zone.findUnique as jest.Mock).mockResolvedValue({ id: 'zone-123', name: 'Zona Cusco Centro' });
-    (prisma.zone.delete as jest.Mock).mockResolvedValue({ id: 'zone-123' });
+    (prisma.zone.update as jest.Mock).mockResolvedValue({ id: 'zone-123', isActive: false });
 
-    const result = await deleteZone('zone-123');
+    const result = await deleteZone('zone-123', 'admin-uuid-001');
 
     expect(result).toBeDefined();
+    expect(result.isActive).toBe(false);
     expect(prisma.zone.findUnique).toHaveBeenCalledWith({ where: { id: 'zone-123' } });
-    expect(prisma.user.updateMany).toHaveBeenCalledWith({
-      where: { zoneId: 'zone-123' },
-      data: { zoneId: null },
+    // Eliminación lógica: solo se marca inactiva, sin borrado físico ni cascada
+    expect(prisma.zone.update).toHaveBeenCalledWith({
+      where: { id: 'zone-123' },
+      data: { isActive: false },
     });
-    expect(prisma.learnVisit.updateMany).toHaveBeenCalledWith({
-      where: { zoneId: 'zone-123' },
-      data: { zoneId: null },
-    });
-    expect(prisma.gpsTrack.deleteMany).toHaveBeenCalled();
-    expect(prisma.routeExecution.deleteMany).toHaveBeenCalled();
-    expect(prisma.waypoint.deleteMany).toHaveBeenCalled();
-    expect(prisma.routeWasteType.deleteMany).toHaveBeenCalled();
-    expect(prisma.route.deleteMany).toHaveBeenCalledWith({ where: { zoneId: 'zone-123' } });
-    expect(prisma.zone.delete).toHaveBeenCalledWith({ where: { id: 'zone-123' } });
+    // Los ciudadanos conservan su asignación (no se desvinculan)
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    // Criterio ético RF-03.1: la eliminación queda registrada en auditoría
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-uuid-001',
+        action: 'DELETE',
+        entity: 'Zone',
+        entityId: 'zone-123',
+      }),
+    );
   });
 
   it('Debe lanzar error 404 si la zona a eliminar no existe', async () => {
@@ -177,8 +188,7 @@ describe('Pruebas de Servicio de Eliminación de Zonas (RF-03 / HU-03)', () => {
       message: 'Zona no encontrada',
     });
 
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(prisma.zone.delete).not.toHaveBeenCalled();
+    expect(prisma.zone.update).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
   });
 });
-

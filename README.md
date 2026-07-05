@@ -31,7 +31,7 @@ Sistema web completo para la gestión de la recolección de residuos sólidos se
 - Prisma ORM + PostgreSQL
 - Socket.IO — servidor de eventos en tiempo real
 - JWT + bcrypt — autenticación y hash de contraseñas
-- jsPDF + ExcelJS — generación de reportes PDF y Excel
+- Agregaciones Prisma para reportes (la exportación CSV/Excel/PDF se genera en el cliente)
 
 **Infraestructura**
 - Vercel (frontend con CI/CD automático desde `main`)
@@ -338,6 +338,443 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 | RF-10 | Consulta de horarios de recolección | Horarios | Alta | ✓ |
 | RF-05 | Catálogo de tipos de residuos | Gestión de residuos | Media | ✓ |
 | RF-06 | Clasificación y guías educativas | Gestión de residuos | Alta | ✓ |
+
+---
+
+## Gestión del proyecto en Jira
+
+El proyecto se gestiona en Jira Cloud: **[ing-sofware.atlassian.net](https://ing-sofware.atlassian.net)** — proyecto **"Ingeniería de Software"** (clave `SCRUM`, tablero Scrum next-gen).
+
+**Resumen del backlog** *(al 05/07/2026)*:
+
+| Métrica | Valor |
+|---|---|
+| Issues totales | 165 |
+| Épicas | 8 |
+| Tareas (historias / RF / RNF) | 37 |
+| Subtareas | 120 |
+| Finalizadas | 103 (62 %) |
+| En curso | 4 |
+| Por hacer | 58 |
+
+### Épicas (módulos del sistema)
+
+| Clave | Épica | Módulo |
+|---|---|---|
+| SCRUM-5 | E1 — Gestión de Usuarios y Zonas | M1 |
+| SCRUM-6 | E2 — Gestión de Residuos | M2 |
+| SCRUM-7 | E3 — Monitoreo de Rutas | M3 |
+| SCRUM-8 | E4 — Aplicación Móvil Ciudadana | M4 |
+| SCRUM-9 | E5 — Sistema de Alertas | M5 |
+| SCRUM-10 | E6 — Reportes y Analítica | M6 |
+| SCRUM-11 | E7 — Requisitos No Funcionales y Arquitectura | Transversal |
+
+### Backlog de requisitos funcionales (historias de usuario)
+
+Cada RF se descompone en **5 subtareas estándar**: `[1/5] Plan` → `[2/5] Diseño UI/UX` → `[3/5] Frontend` → `[4/5] Backend` → `[5/5] Test`.
+
+| Clave | Requisito (HU) | Épica | Responsable | Estado en Jira |
+|---|---|---|---|---|
+| SCRUM-12 | RF-01: Registro de ciudadanos (HU-01) | E1 | Edmil Saire | ✅ Finalizado |
+| SCRUM-13 | RF-02: Autenticación JWT con roles (HU-02) | E1 | Celia Quispe | ✅ Finalizado |
+| SCRUM-14 | RF-03: Gestión de zonas geográficas GeoJSON (HU-03) | E1 | Christian Pumaccahua | ✅ Finalizado |
+| SCRUM-15 | RF-04: Asignación de usuarios a zonas (HU-04) | E1 | Medaly Lozano | ✅ Finalizado |
+| SCRUM-16 | RF-05: Registro de tipos de residuos (HU-05) | E2 | Celia Quispe | ✅ Finalizado |
+| SCRUM-17 | RF-06: Clasificación de residuos por categoría (HU-06) | E2 | Edmil Saire | 🔄 En curso |
+| SCRUM-18 | RF-07: Visualización de ruta planificada en mapa (HU-07) | E3 | Christian Pumaccahua | ✅ Finalizado |
+| SCRUM-19 | RF-08: Rastreo GPS en tiempo real — Socket.IO (HU-08) | E3 | Edmil Saire | ✅ Finalizado |
+| SCRUM-20 | RF-09: Gestión de rutas con editor en mapa (HU-09) | E3 | Medaly Lozano | ✅ Finalizado |
+| SCRUM-21 | RF-10: Consulta de horarios de recolección (HU-10) | E4 | Edmil Saire | 🔄 En curso |
+| SCRUM-22 | RF-11: Reporte ciudadano de incidencias (HU-11) | E4 | Celia Quispe | ✅ Finalizado |
+| SCRUM-23 | RF-12: Notificación de cercanía del camión (HU-12) | E5 | Christian Pumaccahua | 🔄 En curso |
+| SCRUM-24 | RF-13: Alertas de retraso o incidencias en rutas (HU-13) | E5 | Medaly Lozano | 🔄 En curso |
+| SCRUM-25 | RF-14: Reporte de residuos recolectados por zona (HU-14) | E6 | — | ⬜ Por hacer |
+| SCRUM-26 | RF-15: Reporte de cumplimiento de rutas (HU-15) | E6 | — | ⬜ Por hacer |
+| SCRUM-27 | RF-16: Reporte de participación ciudadana (HU-16) | E6 | — | ⬜ Por hacer |
+
+### Criterios de aceptación por historia de usuario
+
+Criterios extraídos de las descripciones de las issues en Jira. Cada historia incluye además una ficha de pruebas (unidad/integración/E2E con Jest) y su Definition of Done.
+
+<details>
+<summary><strong>RF-01 · Registro de ciudadanos (SCRUM-12)</strong></summary>
+
+> *Como ciudadano de Poroy, quiero registrarme ingresando mis datos personales y ubicando mi domicilio en el mapa, para acceder a los horarios de mi sector y recibir alertas en tiempo real.*
+
+**Funcionales:**
+
+1. El formulario debe solicitar nombres, apellidos, DNI, correo, contraseña, dirección y teléfono (opcional).
+2. El campo Distrito no se muestra en el formulario; se ingresa automáticamente como «Poroy».
+3. Validar DNI de exactamente 8 dígitos numéricos y contraseña con complejidad mínima (8 caracteres, una mayúscula y un número).
+4. Registro en dos pasos: Paso 1 datos personales y consentimiento; Paso 2 ubicación de la vivienda en mapa Leaflet.
+5. Georreferenciar la posición y validar contra las 9 zonas oficiales de Poroy; fuera de cobertura muestra banner de advertencia y asigna el fallback general del distrito.
+6. Tras el registro, enviar correo de confirmación con token de activación válido por 24 horas.
+
+**Éticos / legales:**
+
+- Consentimiento expreso (Ley N.º 29733): checkbox no marcado por defecto + enlace a la Política de Privacidad.
+- Contraseñas con hashing robusto (bcrypt, factor de costo 12).
+
+**DoD:** compila sin errores (`npx tsc --noEmit`), 100 % de la suite Jest en verde y verificación visual del checkbox de consentimiento.
+
+</details>
+
+<details>
+<summary><strong>RF-02 · Autenticación JWT con roles (SCRUM-13)</strong></summary>
+
+> *Como usuario registrado (ciudadano, operador o administrador), quiero autenticarme de forma segura con email y contraseña, para acceder a las funcionalidades de mi rol.*
+
+**Funcionales:**
+
+1. Inicio de sesión validando credenciales con contraseñas cifradas.
+2. Generar token JWT firmado con expiración configurable y rol, redirigiendo al panel correspondiente.
+3. Bloqueo temporal de 15 minutos tras 5 intentos fallidos consecutivos, con mensaje claro.
+4. Recuperación de contraseña con enlace de un solo uso, validez máxima de 1 hora.
+
+**Éticos / legales:**
+
+- Confidencialidad de credenciales con encriptación fuerte (Ley N.º 29733).
+- Mensajes de error genéricos para evitar enumeración de usuarios.
+- Control de acceso estricto basado en roles (RBAC).
+
+**DoD:** código compila sin advertencias, pruebas de cifrado y firmado de tokens en verde, verificación visual del bloqueo de cuenta y de la restricción de rutas de administración.
+
+</details>
+
+<details>
+<summary><strong>RF-03 · Gestión de zonas geográficas GeoJSON (SCRUM-14)</strong></summary>
+
+> *Como administrador municipal, quiero crear, editar y eliminar zonas de recolección dibujándolas en un mapa interactivo, para optimizar la cobertura operativa del servicio.*
+
+**Funcionales:**
+
+1. Dibujar polígonos en mapa interactivo con nombre, código, color y descripción.
+2. Validar automáticamente que el polígono no se solape con zonas existentes; en conflicto, rechazar y resaltar el área solapada.
+3. Persistir los datos geográficos en formato GeoJSON.
+4. Al crear/modificar una zona, recalcular automáticamente la asignación de los ciudadanos contenidos en el polígono.
+5. Edición de vértices y eliminación lógica (inactiva) para preservar el historial.
+
+**Éticos / legales:**
+
+- Registro de auditoría estricto (quién, cuándo, qué) de los cambios territoriales.
+- Procesamiento confidencial de coordenadas en la reasignación (Ley N.º 29733).
+- Notificación clara al ciudadano cuando su zona cambie.
+
+**DoD:** CRUD de zonas y mapa compilan sin errores, pruebas GeoJSON de Jest en verde y verificación visual de la reasignación automática.
+
+</details>
+
+<details>
+<summary><strong>RF-04 · Asignación de usuarios a zonas (SCRUM-15)</strong></summary>
+
+> *Como administrador, quiero que cada ciudadano sea asignado automáticamente a una zona según su dirección domiciliaria, para que reciba las notificaciones y horarios exactos de su área.*
+
+**Funcionales:**
+
+1. Geocodificar la dirección al registrarse o actualizarla.
+2. Aplicar algoritmo punto-en-polígono contra los GeoJSON de zonas activas.
+3. Si cae dentro de un polígono: asignar zona y notificar la confirmación.
+4. Si no pertenece a ninguna zona: asignar zona «pendiente» y alertar al administrador para revisión manual.
+5. Permitir reasignación manual (override) con registro de auditoría.
+6. Si se modifica una zona y un ciudadano queda fuera, reasignarlo automáticamente.
+
+**Éticos / legales:**
+
+- Tratamiento confidencial de la ubicación con consentimiento (Ley N.º 29733).
+- Minimización de datos: la ubicación solo se usa para el servicio de recolección.
+- Bitácora de auditoría inalterable para cambios manuales, con notificación al ciudadano.
+
+**DoD:** código compila sin advertencias, pruebas de asignación y fallback en verde, verificación visual de zona pendiente y fallback del distrito en el registro.
+
+</details>
+
+<details>
+<summary><strong>RF-05 · Registro de tipos de residuos (SCRUM-16)</strong></summary>
+
+> *Como administrador municipal, quiero registrar y mantener un catálogo de tipos de residuos, para estandarizar la clasificación de desechos.*
+
+**Funcionales:**
+
+1. Crear, modificar y listar tipos de residuos.
+2. Cada tipo registra nombre, categoría, descripción, color hexadecimal, ejemplos e instrucciones de segregación.
+3. Validar unicidad del nombre; rechazar duplicados con error HTTP 409.
+4. Activación/desactivación lógica (`isActive`) sin borrado físico.
+
+**Éticos / legales:**
+
+- Cumplimiento de la Ley N.º 27314 (Gestión Integral de Residuos Sólidos).
+- Transparencia ambiental: clasificación clara y verídica.
+
+**DoD:** compila sin advertencias TypeScript, pruebas del servicio de residuos en verde y verificación visual del CRUD y del cambio de estado lógico.
+
+</details>
+
+<details>
+<summary><strong>RF-06 · Clasificación de residuos por categoría (SCRUM-17)</strong></summary>
+
+> *Como ciudadano, quiero consultar guías visuales educativas bilingües para aprender a clasificar correctamente mis desechos.*
+
+**Funcionales:**
+
+1. Guía visual de segregación por categorías (orgánicos, reciclables, no reciclables, peligrosos) alineada con la NTP 900.058.
+2. Buscador interactivo con autocompletado en tiempo real sobre los tipos registrados.
+3. Información y guías en formato bilingüe (español y quechua).
+4. Acceso restringido a ciudadanos, listando solo tipos de residuos activos.
+
+**Éticos / legales:**
+
+- Inclusión cultural: soporte en quechua para acceso equitativo a la educación ambiental.
+- Códigos de colores conforme a la Norma Técnica Peruana NTP 900.058.
+
+**DoD:** frontend del catálogo y buscador compilan, pruebas de endpoints públicos al 100 % y verificación en navegador del autocompletado y el contenido español/quechua.
+
+</details>
+
+<details>
+<summary><strong>RF-07 · Visualización de ruta planificada en mapa (SCRUM-18)</strong></summary>
+
+> *Como ciudadano, quiero visualizar la ruta planificada del camión recolector de mi zona en el mapa, para conocer las paradas y el recorrido exacto.*
+
+**Funcionales:**
+
+1. Visualizar en mapa interactivo la ruta planificada asignada a la zona.
+2. Ruta continua conectando los waypoints según su orden ascendente.
+3. Cada parada muestra información descriptiva al hacer clic (dirección y orden).
+4. Sin ruta activa en la zona: mostrar mensaje de ausencia temporal de rutas.
+5. Mapa responsivo con controles básicos (zoom, paneo).
+
+**Éticos / legales:**
+
+- No exponer localizaciones exactas de otros ciudadanos; solo paradas públicas autorizadas (Ley N.º 29733).
+- Información verídica que refleje fielmente la planificación municipal.
+
+**DoD:** lógica de consulta de rutas compila sin errores, pruebas del servicio de rutas en verde y verificación visual del renderizado ordenado de waypoints.
+
+</details>
+
+<details>
+<summary><strong>RF-08 · Rastreo GPS en tiempo real (SCRUM-19)</strong></summary>
+
+> *Como ciudadano de una zona de recolección, quiero ver la ubicación en tiempo real del camión recolector, para sacar mis residuos en el momento adecuado.*
+
+**Funcionales:**
+
+1. Capturar la ubicación GPS del operador cada 10 segundos y transmitirla vía WebSocket.
+2. Mostrar el marcador del camión en movimiento en tiempo real.
+3. Ante pérdida de señal GPS: mantener la última ubicación conocida con indicador «sin señal».
+4. Archivar el historial de trayectorias durante al menos 30 días.
+5. Al finalizar la ruta, detener la transmisión y retirar el camión del mapa público.
+
+**Éticos / legales:**
+
+- Privacidad del operador (Ley N.º 29733): los ciudadanos ven el alias «Operador Autorizado», sin datos personales.
+- Consentimiento explícito del operador para compartir su ubicación durante el turno.
+- Transmisión solo con ruta en estado «Activa»; prohibido el rastreo fuera de la jornada.
+
+**DoD:** lógica de tracking compila sin errores, pruebas de Socket.IO en verde y verificación visual de la transmisión anonimizada.
+
+</details>
+
+<details>
+<summary><strong>RF-09 · Gestión de rutas con editor en mapa (SCRUM-20)</strong></summary>
+
+> *Como administrador municipal, quiero crear, editar, duplicar y eliminar rutas con sus paradas, horarios, vehículos y operarios, para planificar la operación diaria.*
+
+**Funcionales:**
+
+1. Crear rutas dibujando waypoints en el mapa o duplicando una plantilla existente.
+2. Definir horario de inicio/fin y asignar vehículo y operario en estado disponible.
+3. Validar conflictos de horario (mismo operario o vehículo en rutas simultáneas); en conflicto, bloquear el guardado y detallar el cruce.
+4. Al guardar, persistir con estado «planificada» y notificar automáticamente al operario.
+5. Confirmación adicional para editar rutas activas; eliminación lógica preservando el histórico.
+
+**Éticos / legales:**
+
+- Registro de auditoría inmutable de modificaciones y eliminaciones.
+- Salud ocupacional: validación de tiempos que respeten jornada y descansos.
+- Confidencialidad de los datos del operario en paneles administrativos (Ley N.º 29733).
+
+**DoD:** validación de conflictos y CRUD compilan al 100 %, pruebas de rutas en verde (listado, detalle, conflictos) y validación visual de la alerta de cruce horario.
+
+</details>
+
+<details>
+<summary><strong>RF-10 · Consulta de horarios de recolección (SCRUM-21)</strong></summary>
+
+> *Como ciudadano de Poroy, quiero consultar los horarios y días de recolección de mi zona, para sacar mis residuos a tiempo.*
+
+**Funcionales:**
+
+1. Mostrar horarios (días y horas) de la zona asignada del ciudadano.
+2. Visualización clara: días de la semana con horas de inicio/fin.
+3. Sin zona asignada (zona «pendiente»): indicar que está en revisión y sugerir la zona activa del distrito como referencia.
+4. Funcionamiento offline si los datos ya fueron cargados (almacenamiento local o caché).
+
+**Éticos / legales:**
+
+- Minimización de datos: la consulta no expone datos personales de otros ciudadanos de la zona.
+
+**DoD:** compila sin errores en cliente y servidor, y pasan las pruebas del servicio de rutas y zonas.
+
+</details>
+
+<details>
+<summary><strong>RF-11 · Reporte ciudadano de incidencias (SCRUM-22)</strong></summary>
+
+> *Como ciudadano, quiero reportar incidencias (acumulación de basura, contenedor dañado, recolección no realizada) con foto y ubicación, para que la municipalidad las atienda oportunamente.*
+
+**Funcionales:**
+
+1. Formulario con tipo de incidencia (acumulación, contenedor dañado, no se recolectó, otro) y descripción libre.
+2. Foto opcional comprimida automáticamente en el cliente a menos de 500 KB.
+3. Captura automática de GPS; si el usuario deniega permisos, permitir ingreso manual de la dirección.
+4. Generar código de seguimiento único con formato `INC-YYYY-XXXXX` (ej.: INC-2026-00451).
+5. Modo offline: sin conexión, guardar en IndexedDB y sincronizar automáticamente al recuperar la red.
+
+**Éticos / legales:**
+
+- Aviso de privacidad y consentimiento explícito para cámara y ubicación (Ley N.º 29733).
+- Confidencialidad del denunciante frente a terceros y operarios.
+- Recomendaciones para evitar capturar rostros o placas de terceros en las fotos.
+
+**DoD:** validador y servicio compilan limpios, pruebas de persistencia/permisos/formato en verde, verificación visual de la compresión < 500 KB y comprobación del flujo offline.
+
+</details>
+
+<details>
+<summary><strong>RF-12 · Notificación de cercanía del camión (SCRUM-23)</strong></summary>
+
+> *Como ciudadano de Poroy, quiero recibir una notificación en tiempo real cuando el camión esté a menos de 500 metros de mi domicilio, para sacar mis residuos a tiempo.*
+
+**Funcionales:**
+
+1. Monitorear la posición GPS en tiempo real del vehículo asignado a la zona.
+2. Disparar alerta cuando la distancia al domicilio sea inferior a 500 metros.
+3. Transmitir la notificación por WebSockets (Socket.IO) al canal del ciudadano.
+4. Debounce: máximo una notificación por evento del camión cada 5 minutos.
+
+**Éticos / legales:**
+
+- Consentimiento del ciudadano para notificaciones en navegador/dispositivo.
+- Coordenadas de vehículos anónimas, asociadas solo al código del vehículo.
+
+**DoD:** el servicio WebSocket corre estable tras proxies y las alertas se despachan de forma única (debounce verificado).
+
+</details>
+
+<details>
+<summary><strong>RF-13 · Alertas de retraso o incidencias en rutas (SCRUM-24)</strong></summary>
+
+> *Como ciudadano de Poroy, quiero recibir alertas inmediatas sobre retrasos o problemas en la ruta de mi zona, para no sacar la basura innecesariamente.*
+
+**Funcionales:**
+
+1. El operario puede declarar retraso o incidencia (desperfecto mecánico, congestión) con minutos estimados y motivo.
+2. Persistir el retraso en el historial de la ejecución y notificar de inmediato a los ciudadanos de la zona.
+3. Enviar correo formal de notificación y banner Toast en tiempo real por WebSockets.
+
+**Éticos / legales:**
+
+- Transparencia: información clara al ciudadano sobre las demoras del servicio.
+
+**DoD:** compilación limpia de frontend y backend, y verificación de recepción del correo y el banner de retraso.
+
+</details>
+
+<details>
+<summary><strong>RF-14 · Reporte de residuos recolectados por zona (SCRUM-25)</strong></summary>
+
+> *Como administrador municipal, quiero visualizar reportes estadísticos de tipos y cantidades de residuos recolectados por zona, para optimizar rutas y evaluar metas ambientales.*
+
+**Funcionales:**
+
+1. Consultar reportes consolidados por zona en un período de tiempo.
+2. Desglosar cantidades acumuladas: orgánicos, inorgánicos, peligrosos y no aprovechables.
+3. Representaciones visuales (gráficos de barras y pastel) del volumen por zona.
+
+**Éticos / legales:**
+
+- Sostenibilidad: apoyo a decisiones ecológicas informadas.
+
+**DoD:** gráficos renderizan sin errores y las cantidades coinciden al 100 % con los datos agregados en base de datos.
+
+</details>
+
+<details>
+<summary><strong>RF-15 · Reporte de cumplimiento de rutas (SCRUM-26)</strong></summary>
+
+> *Como administrador municipal, quiero evaluar el cumplimiento de las rutas programadas (completadas, a medias, no iniciadas, tiempos promedio), para fiscalizar el trabajo de los operarios.*
+
+**Funcionales:**
+
+1. Registrar automáticamente horas de inicio y fin reales de cada ejecución de ruta.
+2. Consolidar reportes de eficiencia: horas planificadas vs. horas reales por ruta activa.
+3. Indicadores clave: porcentaje de cumplimiento y tiempo total de recorrido.
+
+**Éticos / legales:**
+
+- Fiscalización objetiva basada en datos de seguimiento, no en valoraciones subjetivas.
+
+**DoD:** acceso restringido a administradores y cálculo correcto del porcentaje de cumplimiento según waypoints visitados.
+
+</details>
+
+<details>
+<summary><strong>RF-16 · Reporte de participación ciudadana (SCRUM-27)</strong></summary>
+
+> *Como administrador municipal, quiero ver estadísticas de participación ciudadana (incidencias, visitas educativas, uso de alertas), para identificar zonas con baja adopción y planificar campañas.*
+
+**Funcionales:**
+
+1. Acumular estadísticas agregadas y anónimas: ciudadanos activos, incidencias enviadas, visitas educativas por zona.
+2. Mapa de calor o tabla comparativa por zonas.
+3. Recomendaciones automáticas de concientización y talleres para zonas con baja participación.
+
+**Éticos / legales:**
+
+- Anonimización (Ley N.º 29733): sin DNI, nombres ni direcciones; datos puramente agregados por zona.
+
+**DoD:** datos consolidados correctos en base de datos y verificación de no exposición de identidad en los payloads REST.
+
+</details>
+
+### Requisitos no funcionales y arquitectura (E7)
+
+| Clave | Requisito | Estado |
+|---|---|---|
+| SCRUM-108 | RNF-001: Rendimiento (latencias) | ⬜ Por hacer |
+| SCRUM-109 | RNF-002: Disponibilidad y persistencia | ⬜ Por hacer |
+| SCRUM-110 | RNF-003: Seguridad | ⬜ Por hacer |
+| SCRUM-111 | RNF-004: Escalabilidad y distribución | ⬜ Por hacer |
+| SCRUM-112 | RNF-005: Usabilidad | ⬜ Por hacer |
+| SCRUM-113 | RNF-006: Interoperabilidad | ⬜ Por hacer |
+| SCRUM-114 | RNF-007: Soporte offline | ⬜ Por hacer |
+| SCRUM-115 | RNF-008: Cumplimiento normativo | ⬜ Por hacer |
+| SCRUM-116 | ARCH-01: Implementar arquitectura ADR-001 | ⬜ Por hacer |
+
+### Historias técnicas del sprint fundacional
+
+Serie de historias técnicas ya completadas que sentaron la base del sistema (todas con el mismo ciclo de 5 subtareas):
+
+| Clave | Historia técnica | Estado |
+|---|---|---|
+| SCRUM-118 | HU-01: Autenticación y JWT | ✅ Finalizado |
+| SCRUM-124 | HU-02: Visualización del mapa base | ✅ Finalizado |
+| SCRUM-130 | HU-03: Catálogo de residuos sólidos | ✅ Finalizado |
+| SCRUM-136 | HU-04: Reporte de incidencias básico | ✅ Finalizado |
+| SCRUM-142 | HU-05: Calendario visual de recolección | ✅ Finalizado |
+| SCRUM-148 | HU-06: Tracking GPS con WebSockets | ✅ Finalizado |
+| SCRUM-154 | HU-07: Soporte Offline para reportes | ✅ Finalizado |
+| SCRUM-160 | HU-08: Base de datos Geoespacial (PostGIS) | ✅ Finalizado |
+
+### Equipo Scrum
+
+| Integrante | RF asignados |
+|---|---|
+| Edmil Jampier Saire Bustamante | RF-01, RF-06, RF-08, RF-10 + historias técnicas HU-01…HU-08 |
+| Celia Quispe Quispe | RF-02, RF-05, RF-11 |
+| Christian Pumaccahua Cusihuamán | RF-03, RF-07, RF-12 |
+| Medaly Lozano Llacctahuamán | RF-04, RF-09, RF-13 |
 
 ---
 

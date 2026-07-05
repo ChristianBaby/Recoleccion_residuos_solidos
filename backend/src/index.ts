@@ -9,6 +9,7 @@ import { prisma } from './config/prisma'
 import routes from './routes'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketServer } from './socket'
+import { startGpsRetentionJob } from './services/gpsRetention.service'
 
 const app = express()
 
@@ -89,6 +90,9 @@ async function main() {
   try {
     await prisma.$connect()
     console.log('✅ Conectado a PostgreSQL')
+
+    // RF-08.4: limpieza periódica del historial GPS (retención de 30 días)
+    startGpsRetentionJob()
 
     httpServer.listen(env.port, () => {
       console.log(`🚀 Backend corriendo en http://localhost:${env.port}`)

@@ -31,7 +31,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const zone = await zoneService.updateZone(req.params['id'] as string, req.body)
+    const zone = await zoneService.updateZone(req.params['id'] as string, req.body, req.user!.id)
     ok(res, zone, 'Zona actualizada exitosamente')
   } catch (err) {
     next(err)
@@ -77,7 +77,7 @@ export async function assignMe(req: Request, res: Response, next: NextFunction) 
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    await zoneService.deleteZone(req.params['id'] as string)
+    await zoneService.deleteZone(req.params['id'] as string, req.user!.id)
     ok(res, null, 'Zona eliminada exitosamente')
   } catch (err) {
     next(err)

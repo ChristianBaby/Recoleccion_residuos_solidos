@@ -37,7 +37,7 @@ export async function toggleActive(req: Request, res: Response, next: NextFuncti
 export async function assignZone(req: Request, res: Response, next: NextFunction) {
   try {
     const { zoneId } = req.body as { zoneId: string | null }
-    const user = await userService.assignZone(req.params['id'] as string, zoneId ?? null)
+    const user = await userService.assignZone(req.params['id'] as string, zoneId ?? null, req.user!.id)
     ok(res, user, zoneId ? 'Zona asignada correctamente' : 'Zona removida')
   } catch (err) {
     next(err)
