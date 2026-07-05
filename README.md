@@ -353,9 +353,9 @@ El proyecto se gestiona en Jira Cloud: **[ing-sofware.atlassian.net](https://ing
 | Épicas | 8 |
 | Tareas (historias / RF / RNF) | 37 |
 | Subtareas | 120 |
-| Finalizadas | 103 (62 %) |
-| En curso | 4 |
-| Por hacer | 58 |
+| Finalizadas | 139 (84 %) |
+| En curso | 0 |
+| Por hacer | 26 |
 
 ### Épicas (módulos del sistema)
 
@@ -380,17 +380,17 @@ Cada RF se descompone en **5 subtareas estándar**: `[1/5] Plan` → `[2/5] Dise
 | SCRUM-14 | RF-03: Gestión de zonas geográficas GeoJSON (HU-03) | E1 | Christian Pumaccahua | ✅ Finalizado |
 | SCRUM-15 | RF-04: Asignación de usuarios a zonas (HU-04) | E1 | Medaly Lozano | ✅ Finalizado |
 | SCRUM-16 | RF-05: Registro de tipos de residuos (HU-05) | E2 | Celia Quispe | ✅ Finalizado |
-| SCRUM-17 | RF-06: Clasificación de residuos por categoría (HU-06) | E2 | Edmil Saire | 🔄 En curso |
+| SCRUM-17 | RF-06: Clasificación de residuos por categoría (HU-06) | E2 | Edmil Saire | ✅ Finalizado |
 | SCRUM-18 | RF-07: Visualización de ruta planificada en mapa (HU-07) | E3 | Christian Pumaccahua | ✅ Finalizado |
 | SCRUM-19 | RF-08: Rastreo GPS en tiempo real — Socket.IO (HU-08) | E3 | Edmil Saire | ✅ Finalizado |
 | SCRUM-20 | RF-09: Gestión de rutas con editor en mapa (HU-09) | E3 | Medaly Lozano | ✅ Finalizado |
-| SCRUM-21 | RF-10: Consulta de horarios de recolección (HU-10) | E4 | Edmil Saire | 🔄 En curso |
+| SCRUM-21 | RF-10: Consulta de horarios de recolección (HU-10) | E4 | Edmil Saire | ✅ Finalizado |
 | SCRUM-22 | RF-11: Reporte ciudadano de incidencias (HU-11) | E4 | Celia Quispe | ✅ Finalizado |
-| SCRUM-23 | RF-12: Notificación de cercanía del camión (HU-12) | E5 | Christian Pumaccahua | 🔄 En curso |
-| SCRUM-24 | RF-13: Alertas de retraso o incidencias en rutas (HU-13) | E5 | Medaly Lozano | 🔄 En curso |
-| SCRUM-25 | RF-14: Reporte de residuos recolectados por zona (HU-14) | E6 | — | ⬜ Por hacer |
-| SCRUM-26 | RF-15: Reporte de cumplimiento de rutas (HU-15) | E6 | — | ⬜ Por hacer |
-| SCRUM-27 | RF-16: Reporte de participación ciudadana (HU-16) | E6 | — | ⬜ Por hacer |
+| SCRUM-23 | RF-12: Notificación de cercanía del camión (HU-12) | E5 | Christian Pumaccahua | ✅ Finalizado |
+| SCRUM-24 | RF-13: Alertas de retraso o incidencias en rutas (HU-13) | E5 | Medaly Lozano | ✅ Finalizado |
+| SCRUM-25 | RF-14: Reporte de residuos recolectados por zona (HU-14) | E6 | Edmil Saire | ✅ Finalizado |
+| SCRUM-26 | RF-15: Reporte de cumplimiento de rutas (HU-15) | E6 | Medaly Lozano | ✅ Finalizado |
+| SCRUM-27 | RF-16: Reporte de participación ciudadana (HU-16) | E6 | Celia Quispe | ✅ Finalizado |
 
 ### Criterios de aceptación por historia de usuario
 
@@ -562,7 +562,7 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 1. Capturar la ubicación GPS del operador cada 10 segundos y transmitirla vía WebSocket.
 2. Mostrar el marcador del camión en movimiento en tiempo real.
 3. Ante pérdida de señal GPS: mantener la última ubicación conocida con indicador «sin señal».
-4. Archivar el historial de trayectorias durante al menos 30 días.
+4. Archivar el historial de trayectorias durante al menos 30 días (con una política de purga automática cada 24 horas para cumplir con el principio de minimización de datos).
 5. Al finalizar la ruta, detener la transmisión y retirar el camión del mapa público.
 
 **Éticos / legales:**
@@ -728,7 +728,7 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 
 1. Acumular estadísticas agregadas y anónimas: ciudadanos activos, incidencias enviadas, visitas educativas por zona.
 2. Mapa de calor o tabla comparativa por zonas.
-3. Recomendaciones automáticas de concientización y talleres para zonas con baja participación.
+3. Recomendaciones automáticas de concientización y talleres para zonas con baja participación (calculadas comparando el índice individual `ciudadanos + incidencias + visitas` contra el promedio general de participación de todas las zonas).
 
 **Éticos / legales:**
 
@@ -748,9 +748,9 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 | SCRUM-111 | RNF-004: Escalabilidad y distribución | ⬜ Por hacer |
 | SCRUM-112 | RNF-005: Usabilidad | ⬜ Por hacer |
 | SCRUM-113 | RNF-006: Interoperabilidad | ⬜ Por hacer |
-| SCRUM-114 | RNF-007: Soporte offline | ⬜ Por hacer |
+| SCRUM-114 | RNF-007: Soporte offline | ✅ Finalizado |
 | SCRUM-115 | RNF-008: Cumplimiento normativo | ⬜ Por hacer |
-| SCRUM-116 | ARCH-01: Implementar arquitectura ADR-001 | ⬜ Por hacer |
+| SCRUM-116 | ARCH-01: Implementar arquitectura ADR-001 | ✅ Finalizado |
 
 ### Historias técnicas del sprint fundacional
 
