@@ -58,6 +58,7 @@ export default function TrackingPage() {
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null)
   const watchIdRef = useRef<number | null>(null)
   const isTrackingRef = useRef(false)
+  const wakeLockRef = useRef<any>(null)
 
   // idle GPS - operator's position before tracking starts
   const [idlePosition, setIdlePosition] = useState<{ lat: number; lng: number } | null>(null)
@@ -241,6 +242,56 @@ export default function TrackingPage() {
     socket.emit('tracking:all')
   }, [isConnected, user?.role])
 
+  // Adquirir bloqueo de pantalla para evitar suspensión en móviles
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await (navigator.wakeLock as any).request('screen')
+        console.log('✅ Wake Lock activado: pantalla encendida')
+      }
+    } catch (err) {
+      console.warn('⚠️ No se pudo activar Wake Lock:', err)
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().then(() => {
+        wakeLockRef.current = null
+        console.log('❌ Wake Lock liberado')
+      }).catch(() => {})
+    }
+  }, [])
+
+  const startWatch = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, speed } = pos.coords
+        setMyPosition({ lat: latitude, lng: longitude })
+        setIdlePosition(null)
+        socketRef.current?.emit('tracking:position', {
+          lat: latitude, lng: longitude,
+          speed: speed != null ? speed * 3.6 : undefined,
+        })
+      },
+      (err) => {
+        console.warn('[GPS] Error en watchPosition:', err.message)
+        // Reinicio automático en caso de pérdida temporal de señal (TIMEOUT / POSITION_UNAVAILABLE)
+        if (isTrackingRef.current) {
+          console.log('[GPS] Reiniciando watchPosition por error temporal...')
+          setTimeout(() => {
+            if (isTrackingRef.current) startWatch()
+          }, 2000)
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  }, [])
+
   // --- Internal: begin GPS watch + emit tracking:start ----------------------
   const beginTracking = useCallback(() => {
     const socket = socketRef.current
@@ -251,20 +302,9 @@ export default function TrackingPage() {
     setVisitedWaypoints(new Set())
     setShowStartWarning(false)
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, speed } = pos.coords
-        setMyPosition({ lat: latitude, lng: longitude })
-        setIdlePosition(null) // clear idle dot once tracking is live
-        socket.emit('tracking:position', {
-          lat: latitude, lng: longitude,
-          speed: speed != null ? speed * 3.6 : undefined,
-        })
-      },
-      () => toast.error('No se pudo obtener la ubicación GPS. Verifica los permisos de ubicación de tu navegador.'),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-    )
-  }, [selectedRouteId])
+    requestWakeLock()
+    startWatch()
+  }, [selectedRouteId, requestWakeLock, startWatch])
 
   // --- GPS start - checks proximity to first waypoint first -----------------
   const startTracking = useCallback(() => {
@@ -291,6 +331,7 @@ export default function TrackingPage() {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
     }
+    releaseWakeLock()
     socketRef.current?.emit('tracking:stop')
     setIsTracking(false)
     isTrackingRef.current = false
@@ -300,7 +341,7 @@ export default function TrackingPage() {
       setCollectionKg({})
       setShowCollectionModal(true)
     }
-  }, [executionId, user?.role])
+  }, [executionId, user?.role, releaseWakeLock])
 
   // RF-18: enviar las cantidades declaradas al backend
   const submitCollection = useCallback(async () => {
@@ -346,8 +387,9 @@ export default function TrackingPage() {
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current)
       if (isTrackingRef.current) socketRef.current?.emit('tracking:stop')
+      releaseWakeLock()
     }
-  }, [])
+  }, [releaseWakeLock])
 
   // --- Derived state --------------------------------------------------------
   const todayRoutes = myRoutes.filter((r) => r.dayOfWeek.includes(todayDay))
