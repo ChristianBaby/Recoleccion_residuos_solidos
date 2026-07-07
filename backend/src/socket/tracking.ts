@@ -117,6 +117,8 @@ function broadcastTruckUpdate(io: Server, truck: ActiveTruck) {
   if (truck.zoneId) {
     io.to(`zone:${truck.zoneId}`).emit('tracking:truck_update', anonymizeTruck(truck))
   }
+  // También transmitir a los que ven todas las zonas
+  io.to('zone:all').emit('tracking:truck_update', anonymizeTruck(truck))
   // El admin siempre recibe todo
   io.to('admin_room').emit('tracking:truck_update', truck)
 }
@@ -248,6 +250,7 @@ export function setupTrackingHandlers(io: Server, socket: Socket) {
   // ── Ciudadano/Admin: suscribirse a zona ───────────────────────────────────
   socket.on('tracking:subscribe', ({ zoneId }: { zoneId: string }) => {
     leaveSubscribedZone(socket)
+    socket.leave('zone:all') // Dejar de escuchar actualizaciones globales
     socket.join(`zone:${zoneId}`)
     socket.data.subscribedZoneId = zoneId
     // Enviar camiones activos en esa zona
@@ -258,6 +261,7 @@ export function setupTrackingHandlers(io: Server, socket: Socket) {
   // ── Ciudadano sin zona: recibe todos los camiones activos ─────────────────
   socket.on('tracking:all', () => {
     leaveSubscribedZone(socket)
+    socket.join('zone:all') // Escuchar actualizaciones globales de todas las zonas
     const allTrucks = Array.from(activeTrucks.values())
     socket.emit('tracking:trucks', user.role === 'ADMIN' ? allTrucks : allTrucks.map(anonymizeTruck))
   })
@@ -347,6 +351,7 @@ async function cleanupTracking(socket: Socket, io: Server) {
   if (truck.zoneId) {
     io.to(`zone:${truck.zoneId}`).emit('tracking:truck_removed', removed)
   }
+  io.to('zone:all').emit('tracking:truck_removed', removed)
   io.to('admin_room').emit('tracking:truck_removed', removed)
 
   // Cerrar RouteExecution
