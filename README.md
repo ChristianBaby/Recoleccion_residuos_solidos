@@ -446,6 +446,7 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 
 - Consentimiento expreso (Ley N.º 29733): checkbox no marcado por defecto + enlace a la Política de Privacidad.
 - Contraseñas con hashing robusto (bcrypt, factor de costo 12).
+- Minimización y confidencialidad: las coordenadas del domicilio se usan solo para asignar zona y servicio, sin exponerse a otros usuarios.
 
 **DoD:** compila sin errores (`npx tsc --noEmit`), 100 % de la suite Jest en verde y verificación visual del checkbox de consentimiento.
 
