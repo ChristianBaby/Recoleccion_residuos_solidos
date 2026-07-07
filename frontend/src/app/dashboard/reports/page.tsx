@@ -24,7 +24,10 @@ interface WasteZone {
   district: string
   color: string
   executions: number
-  categories: { category: string; name: string; colorCode: string; count: number }[]
+  // RF-18: pesaje declarado por el operador al cierre de ruta
+  weighedExecutions: number
+  totalKg: number
+  categories: { category: string; name: string; colorCode: string; count: number; kg: number }[]
 }
 
 interface ComplianceRoute {
@@ -239,6 +242,7 @@ function WasteTab({
   }, [load])
 
   const totalExecutions = data.reduce((s, z) => s + z.executions, 0)
+  const totalKg = Math.round(data.reduce((s, z) => s + (z.totalKg ?? 0), 0) * 100) / 100
   const mostActive =
     totalExecutions > 0
       ? data.reduce<WasteZone | null>(
@@ -250,11 +254,11 @@ function WasteTab({
   const chartData = data.map((z) => ({ name: z.zoneName, Ejecuciones: z.executions, fill: z.color }))
 
   function getExportData() {
-    const headers = ['Zona', 'Distrito', 'Ejecuciones', 'Tipo Residuo', 'Categoría', 'Conteo']
+    const headers = ['Zona', 'Distrito', 'Ejecuciones', 'Tipo Residuo', 'Categoría', 'Conteo', 'Kg recolectados']
     const rows = data.flatMap((z) =>
       z.categories.length > 0
-        ? z.categories.map((c) => [z.zoneName, z.district, String(z.executions), c.name, c.category, String(c.count)])
-        : [[z.zoneName, z.district, String(z.executions), '—', '—', '0']],
+        ? z.categories.map((c) => [z.zoneName, z.district, String(z.executions), c.name, c.category, String(c.count), String(c.kg ?? 0)])
+        : [[z.zoneName, z.district, String(z.executions), '—', '—', '0', '0']],
     )
     return { headers, rows }
   }
@@ -262,8 +266,13 @@ function WasteTab({
   return (
     <div className="space-y-6">
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         <StatCard label="Total ejecuciones" value={totalExecutions} />
+        <StatCard
+          label="Kg recolectados"
+          value={totalKg > 0 ? `${totalKg} kg` : '—'}
+          sub={totalKg > 0 ? 'declarados al cierre de ruta' : 'sin datos de pesaje'}
+        />
         <StatCard
           label="Zona más activa"
           value={mostActive?.zoneName ?? '—'}
@@ -317,6 +326,7 @@ function WasteTab({
                   <th className="px-5 py-3.5">Zona</th>
                   <th className="px-5 py-3.5">Distrito</th>
                   <th className="px-5 py-3.5 text-right font-bold">Ejecuciones</th>
+                  <th className="px-5 py-3.5 text-right font-bold">Kg recolectados</th>
                   <th className="px-5 py-3.5">Tipos de residuo</th>
                 </tr>
               </thead>
@@ -331,6 +341,15 @@ function WasteTab({
                     </td>
                     <td className="px-5 py-4 text-slate-500 font-semibold">{z.district}</td>
                     <td className="px-5 py-4 text-right font-bold text-slate-850">{z.executions}</td>
+                    <td className="px-5 py-4 text-right">
+                      {(z.totalKg ?? 0) > 0 ? (
+                        <span className="font-bold text-slate-850">{z.totalKg} kg</span>
+                      ) : z.executions > 0 ? (
+                        <span className="text-slate-400 italic">sin datos de pesaje</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-4">
                       {z.categories.length === 0 ? (
                         <span className="text-slate-400">Sin datos</span>
@@ -342,7 +361,7 @@ function WasteTab({
                               className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-white"
                               style={{ backgroundColor: c.colorCode }}
                             >
-                              {c.name}
+                              {c.name}{(c.kg ?? 0) > 0 ? ` · ${c.kg} kg` : ''}
                             </span>
                           ))}
                         </div>

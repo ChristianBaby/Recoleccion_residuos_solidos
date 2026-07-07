@@ -36,16 +36,20 @@ export async function getWasteByZone(filters: { from?: string; to?: string; zone
           },
         },
       },
+      // RF-18: cantidades reales declaradas por el operador al cierre de ruta
+      collectionRecords: { select: { category: true, quantityKg: true } },
     },
   })
 
-  type CatEntry = { category: string; name: string; colorCode: string; count: number }
+  type CatEntry = { category: string; name: string; colorCode: string; count: number; kg: number }
   type ZoneEntry = {
     zoneId: string
     zoneName: string
     district: string
     color: string
     executions: number
+    weighedExecutions: number
+    totalKg: number
     categories: Map<string, CatEntry>
   }
 
@@ -60,6 +64,8 @@ export async function getWasteByZone(filters: { from?: string; to?: string; zone
         district: z.district,
         color: z.color,
         executions: 0,
+        weighedExecutions: 0,
+        totalKg: 0,
         categories: new Map(),
       })
     }
@@ -73,9 +79,30 @@ export async function getWasteByZone(filters: { from?: string; to?: string; zone
           name: wt.name,
           colorCode: wt.colorCode,
           count: 0,
+          kg: 0,
         })
       }
       entry.categories.get(wt.category)!.count++
+    }
+
+    // Ejecuciones antiguas sin registro de pesaje se mantienen con kg = 0
+    // y se distinguen mediante weighedExecutions (compatibilidad histórica)
+    const records = ex.collectionRecords ?? []
+    if (records.length > 0) entry.weighedExecutions++
+    for (const record of records) {
+      entry.totalKg += record.quantityKg
+      const cat = entry.categories.get(record.category)
+      if (cat) {
+        cat.kg += record.quantityKg
+      } else {
+        entry.categories.set(record.category, {
+          category: record.category,
+          name: record.category,
+          colorCode: '#94a3b8',
+          count: 0,
+          kg: record.quantityKg,
+        })
+      }
     }
   }
 
@@ -97,6 +124,8 @@ export async function getWasteByZone(filters: { from?: string; to?: string; zone
       district: z.district,
       color: z.color,
       executions: entry?.executions ?? 0,
+      weighedExecutions: entry?.weighedExecutions ?? 0,
+      totalKg: entry ? Math.round(entry.totalKg * 100) / 100 : 0,
       categories: entry ? Array.from(entry.categories.values()) : [],
     }
   })

@@ -10,8 +10,12 @@ import routes from './routes'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketServer } from './socket'
 import { startGpsRetentionJob } from './services/gpsRetention.service'
+import { configureWebPush } from './services/push.service'
 
 const app = express()
+
+// RF-17: inicializa Web Push (queda desactivado si faltan claves VAPID)
+configureWebPush()
 
 // Necesario para que express-rate-limit funcione correctamente detrás de proxies (Railway, Heroku, etc.)
 app.set('trust proxy', 1)

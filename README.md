@@ -174,6 +174,32 @@ El administrador crea y edita rutas directamente sobre el mapa interactivo.
 
 ---
 
+### RF-17 · Notificaciones push PWA con app cerrada
+
+Complementa RF-12 y RF-13: las alertas llegan al ciudadano aunque la aplicación esté cerrada.
+
+- Suscripción **Web Push con claves VAPID**: el navegador se suscribe vía `PushManager` y la suscripción se persiste en `PushSubscription` asociada al usuario
+- Opt-in explícito desde el panel del ciudadano (botón "Activar notificaciones"), con opción de desuscribirse en cualquier momento
+- El servidor envía push en los eventos de **cercanía del camión** (< radio configurado, RF-12) y **retraso reportado** (RF-13), reutilizando el debounce de 5 minutos
+- Las suscripciones muertas (404/410 del push service) se depuran automáticamente
+- El service worker muestra la notificación y al tocarla abre la vista de rastreo
+- Payload sin datos personales: solo código de vehículo, distancia y mensaje del evento
+- Sin claves VAPID configuradas el módulo queda desactivado de forma segura (Socket.IO y correos siguen operando)
+
+---
+
+### RF-18 · Registro de cantidades recolectadas al cierre de ruta
+
+Alimenta el reporte RF-14 con datos reales de recolección.
+
+- Al pulsar **Finalizar ruta**, el operador registra los kg aproximados por categoría (orgánico, reciclable, no reciclable, peligroso — NTP 900.058)
+- Registro vinculado a la ejecución (`CollectionRecord`), con upsert por categoría (los reintentos corrigen, no duplican) y trazabilidad de quién declaró
+- El operador puede **omitir** el registro: la ruta cierra igual y la ejecución queda marcada "sin datos de pesaje"
+- El reporte RF-14 agrega los kg reales por zona y categoría (`totalKg`, `weighedExecutions`) manteniendo compatibilidad con ejecuciones históricas
+- Las exportaciones CSV/Excel/PDF incluyen la nueva columna de kg
+
+---
+
 ### RF-05 / RF-06 · Tipos de residuos y "Aprende a segregar"
 
 - Catálogo de tipos de residuos con nombre, categoría (ORGANIC / RECYCLABLE / NON\_RECYCLABLE / HAZARDOUS), código de color, ejemplos e instrucciones de manejo
@@ -219,7 +245,7 @@ User ──── Zone ──── Route ──── Waypoint
 WasteType ──── RouteWasteType ──── Route
 ```
 
-Entidades principales: `User`, `Zone`, `Route`, `Waypoint`, `Vehicle`, `RouteExecution`, `GpsTrack`, `WasteType`, `Incident`, `LearnVisit`, `RefreshToken`.
+Entidades principales: `User`, `Zone`, `Route`, `Waypoint`, `Vehicle`, `RouteExecution`, `GpsTrack`, `CollectionRecord`, `WasteType`, `Incident`, `LearnVisit`, `RefreshToken`, `PushSubscription`, `AuditLog`.
 
 ---
 
@@ -262,6 +288,11 @@ JWT_SECRET=tu_secreto_jwt
 JWT_REFRESH_SECRET=tu_secreto_refresh
 PORT=4000
 FRONTEND_URL=http://localhost:3000
+
+# RF-17: Web Push (generar con: npx web-push generate-vapid-keys)
+VAPID_PUBLIC_KEY=clave_publica_vapid
+VAPID_PRIVATE_KEY=clave_privada_vapid
+VAPID_SUBJECT=mailto:soporte@tudominio.pe
 ```
 
 ### Frontend — `.env.local`
@@ -318,7 +349,7 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 
 ## Especificación de Requisitos Funcionales
 
-### Resumen de RF implementados
+### Resumen de RF
 
 | Código | Requisito | Módulo | Prioridad | Estado |
 |--------|-----------|--------|-----------|--------|
@@ -338,6 +369,8 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 | RF-10 | Consulta de horarios de recolección | Horarios | Alta | ✓ |
 | RF-05 | Catálogo de tipos de residuos | Gestión de residuos | Media | ✓ |
 | RF-06 | Clasificación y guías educativas | Gestión de residuos | Alta | ✓ |
+| RF-17 | Notificaciones push PWA con app cerrada | Sistema de alertas | Alta | ✓ |
+| RF-18 | Registro de cantidades recolectadas al cierre de ruta | Reportes | Alta | ✓ |
 
 ---
 
@@ -345,17 +378,14 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 
 El proyecto se gestiona en Jira Cloud: **[ing-sofware.atlassian.net](https://ing-sofware.atlassian.net)** — proyecto **"Ingeniería de Software"** (clave `SCRUM`, tablero Scrum next-gen).
 
-**Resumen del backlog** *(al 05/07/2026)*:
+**Resumen del backlog** *(al 07/07/2026)*:
 
 | Métrica | Valor |
 |---|---|
-| Issues totales | 165 |
-| Épicas | 8 |
-| Tareas (historias / RF / RNF) | 37 |
-| Subtareas | 120 |
-| Finalizadas | 139 (84 %) |
+| Issues totales | 180 |
+| Finalizadas | 180 (100 %) |
 | En curso | 0 |
-| Por hacer | 26 |
+| Por hacer | 0 |
 
 ### Épicas (módulos del sistema)
 
@@ -391,6 +421,8 @@ Cada RF se descompone en **5 subtareas estándar**: `[1/5] Plan` → `[2/5] Dise
 | SCRUM-25 | RF-14: Reporte de residuos recolectados por zona (HU-14) | E6 | Edmil Saire | ✅ Finalizado |
 | SCRUM-26 | RF-15: Reporte de cumplimiento de rutas (HU-15) | E6 | Medaly Lozano | ✅ Finalizado |
 | SCRUM-27 | RF-16: Reporte de participación ciudadana (HU-16) | E6 | Celia Quispe | ✅ Finalizado |
+| SCRUM-176 | RF-17: Notificaciones push PWA con app cerrada (HU-17) | E5 | Edmil Saire | ✅ Finalizado |
+| SCRUM-177 | RF-18: Registro de cantidades recolectadas al cierre de ruta (HU-18) | E6 | Edmil Saire | ✅ Finalizado |
 
 ### Criterios de aceptación por historia de usuario
 
@@ -738,18 +770,66 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 
 </details>
 
+<details>
+<summary><strong>RF-17 · Notificaciones push PWA con app cerrada (SCRUM-176)</strong></summary>
+
+> *Como ciudadano de Poroy, quiero recibir notificaciones de cercanía del camión y de retrasos en mi zona aunque tenga la aplicación cerrada, para sacar mis residuos a tiempo sin depender de estar mirando la pantalla.*
+
+**Contexto técnico:** RF-12 y RF-13 hoy notifican solo con la app abierta (Socket.IO + API `Notification` del navegador). El service worker (`sw.js`) ya tiene los listeners `push` y `notificationclick` preparados; falta el circuito servidor: claves VAPID, persistencia de suscripciones y envío Web Push desde los eventos existentes.
+
+**Funcionales:**
+
+1. Suscripción Web Push desde el navegador usando claves VAPID; persistir la suscripción (modelo `PushSubscription`) asociada al usuario y su zona.
+2. Activación opt-in desde el panel del ciudadano con opción de desuscribirse en cualquier momento; estado del permiso visible.
+3. Enviar push a los ciudadanos suscritos de la zona en los eventos de cercanía del camión (< 500 m, RF-12) y de retraso reportado (RF-13), con la app cerrada.
+4. Reutilizar el debounce de RF-12 (máximo una notificación por camión cada 5 minutos) y depurar suscripciones inválidas (respuesta 404/410 del push service).
+5. Al tocar la notificación, abrir la vista de rastreo de la zona correspondiente.
+
+**Éticos / legales:**
+
+- Consentimiento explícito del ciudadano para notificaciones (Ley N.º 29733); opt-in nunca activado por defecto.
+- Payload del push sin datos personales: solo código de vehículo, zona y mensaje del evento.
+
+**DoD:** pruebas unitarias del servicio de push (suscripción, debounce, depuración de suscripciones muertas) en verde, compilación limpia, y verificación E2E de recepción con la app cerrada en un dispositivo móvil.
+
+</details>
+
+<details>
+<summary><strong>RF-18 · Registro de cantidades recolectadas al cierre de ruta (SCRUM-177)</strong></summary>
+
+> *Como operador, quiero registrar las cantidades aproximadas recolectadas por categoría al finalizar mi ruta, para que los reportes municipales de residuos reflejen datos reales y no estimaciones.*
+
+**Contexto técnico:** el reporte RF-14 ("residuos recolectados por zona") hoy no agrega cantidades reales — cuenta ejecuciones × tipos de residuo asignados a la ruta (`report.service.ts`). Ningún punto del sistema registra kilogramos.
+
+**Funcionales:**
+
+1. Al pulsar "Finalizar ruta", mostrar al operador un formulario breve para registrar los kilogramos aproximados recolectados por categoría (orgánico, reciclable, no reciclable, peligroso — NTP 900.058).
+2. Persistir el registro vinculado a la ejecución de ruta (`RouteExecution`), con categoría, cantidad en kg y marca de tiempo.
+3. Validaciones: cantidades numéricas ≥ 0; permitir omitir categorías que no apliquen a la ruta; el registro no bloquea el cierre de la ruta si el operador lo omite (registro con valores en cero y advertencia).
+4. El reporte RF-14 agrega sobre los kilogramos reales registrados; las ejecuciones históricas sin registro se muestran diferenciadas ("sin datos de pesaje") manteniendo compatibilidad.
+5. Las exportaciones PDF/Excel existentes reflejan las nuevas cantidades sin cambios de formato mayores.
+
+**Éticos / legales:**
+
+- Veracidad de la información pública: los reportes municipales se basan en datos declarados por el operador responsable, con trazabilidad de quién registró cada cantidad.
+- Sostenibilidad: datos reales para evaluar metas ambientales y optimizar rutas.
+
+**DoD:** pruebas unitarias del servicio de registro y de la nueva agregación de RF-14 en verde, compilación limpia, y verificación visual de que los gráficos y exportaciones muestran los kg registrados.
+
+</details>
+
 ### Requisitos no funcionales y arquitectura (E7)
 
 | Clave | Requisito | Estado |
 |---|---|---|
-| SCRUM-108 | RNF-001: Rendimiento (latencias) | ⬜ Por hacer |
-| SCRUM-109 | RNF-002: Disponibilidad y persistencia | ⬜ Por hacer |
-| SCRUM-110 | RNF-003: Seguridad | ⬜ Por hacer |
-| SCRUM-111 | RNF-004: Escalabilidad y distribución | ⬜ Por hacer |
-| SCRUM-112 | RNF-005: Usabilidad | ⬜ Por hacer |
-| SCRUM-113 | RNF-006: Interoperabilidad | ⬜ Por hacer |
+| SCRUM-108 | RNF-001: Rendimiento (latencias) | ✅ Finalizado |
+| SCRUM-109 | RNF-002: Disponibilidad y persistencia | ✅ Finalizado |
+| SCRUM-110 | RNF-003: Seguridad | ✅ Finalizado |
+| SCRUM-111 | RNF-004: Escalabilidad y distribución | ✅ Finalizado |
+| SCRUM-112 | RNF-005: Usabilidad | ✅ Finalizado |
+| SCRUM-113 | RNF-006: Interoperabilidad | ✅ Finalizado |
 | SCRUM-114 | RNF-007: Soporte offline | ✅ Finalizado |
-| SCRUM-115 | RNF-008: Cumplimiento normativo | ⬜ Por hacer |
+| SCRUM-115 | RNF-008: Cumplimiento normativo | ✅ Finalizado |
 | SCRUM-116 | ARCH-01: Implementar arquitectura ADR-001 | ✅ Finalizado |
 
 ### Historias técnicas del sprint fundacional

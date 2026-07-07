@@ -27,5 +27,18 @@ export const updateRouteSchema = createRouteSchema.partial().extend({
   status: z.enum(['DRAFT', 'ACTIVE', 'INACTIVE']).optional(),
 })
 
+// RF-18: cantidades recolectadas por categoría al cierre de ruta
+export const registerCollectionSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        category: z.enum(['ORGANIC', 'RECYCLABLE', 'NON_RECYCLABLE', 'HAZARDOUS']),
+        quantityKg: z.number().min(0, 'La cantidad no puede ser negativa').max(100000),
+      }),
+    )
+    .min(1, 'Registre al menos una categoría'),
+})
+
 export type CreateRouteInput = z.infer<typeof createRouteSchema>
 export type UpdateRouteInput = z.infer<typeof updateRouteSchema>
+export type RegisterCollectionInput = z.infer<typeof registerCollectionSchema>

@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma'
 import { haversineDistance } from '../utils/geoUtils'
 import { createProximityDebouncer } from '../services/proximity.service'
 import { sendRouteDelayEmail } from '../services/email.service'
+import { sendPushToUsers } from '../services/push.service'
 
 const PROXIMITY_RADIUS_METERS = 500
 const ALERT_DEBOUNCE_MS = 5 * 60 * 1000 // 5 minutos entre alertas por ciudadano
@@ -73,6 +74,16 @@ async function checkProximityAlerts(io: Server, truck: ActiveTruck) {
         zoneId: truck.zoneId,
         timestamp: new Date().toISOString(),
       })
+
+      // RF-17: push con la app cerrada (mismo debounce; payload sin datos personales)
+      const distText = distance >= 1000
+        ? `${(distance / 1000).toFixed(1)} km`
+        : `${Math.round(distance)} m`
+      sendPushToUsers([citizen.id], {
+        title: '🚛 El camión está cerca',
+        body: `Vehículo ${truck.vehicleCode} a ${distText} de tu domicilio. Prepara tus residuos.`,
+        url: '/dashboard/tracking',
+      }).catch((err) => console.error('[Push] Error en alerta de cercanía:', err))
     }
   }
 }
@@ -295,6 +306,13 @@ export function setupTrackingHandlers(io: Server, socket: Socket) {
           reason ?? '',
         ).catch((err) => console.error('Error enviando alerta de retraso:', err))
       })
+
+      // RF-17: push de retraso con la app cerrada
+      sendPushToUsers(citizens.map((c) => c.id), {
+        title: '⏰ Retraso en la ruta de recolección',
+        body: `${execution.route.name}: retraso de ${delayMinutes} min${reason ? ` (${reason})` : ''}.`,
+        url: '/dashboard/tracking',
+      }).catch((err) => console.error('[Push] Error en alerta de retraso:', err))
     }).catch(() => { /* no bloquear alerta websocket */ })
 
     socket.emit('tracking:delay_reported', { ok: true })

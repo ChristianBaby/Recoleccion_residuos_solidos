@@ -8,6 +8,7 @@ import incidentRoutes from './incident.routes'
 import reportRoutes from './report.routes'
 import userRoutes from './user.routes'
 import pageVisitRoutes from './pageVisit.routes'
+import pushRoutes from './push.routes'
 
 const router = Router()
 
@@ -20,5 +21,6 @@ router.use('/incidents', incidentRoutes)      // RF-11
 router.use('/reports', reportRoutes)          // RF-14, RF-15, RF-16
 router.use('/users', userRoutes)              // Gestión de usuarios
 router.use('/page-visits', pageVisitRoutes)   // RF-16: consultas educativas
+router.use('/push', pushRoutes)               // RF-17: notificaciones push PWA
 
 export default router

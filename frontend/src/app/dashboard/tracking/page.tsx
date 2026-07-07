@@ -32,6 +32,14 @@ const WAYPOINT_VISIT_RADIUS = 50 // metres
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
 
+// RF-18: categorias oficiales NTP 900.058 para el registro de pesaje
+const COLLECTION_CATEGORIES = [
+  { key: 'ORGANIC', label: 'Organico', color: '#92400e' },
+  { key: 'RECYCLABLE', label: 'Reciclable', color: '#15803d' },
+  { key: 'NON_RECYCLABLE', label: 'No reciclable', color: '#334155' },
+  { key: 'HAZARDOUS', label: 'Peligroso', color: '#b91c1c' },
+] as const
+
 // === Page =====================================================================
 
 export default function TrackingPage() {
@@ -65,6 +73,12 @@ export default function TrackingPage() {
   const [delayReason, setDelayReason] = useState('')
   const [activeTab, setActiveTab] = useState<'panel' | 'map'>('map')
   const [delayReported, setDelayReported] = useState(false)
+
+  // RF-18: registro de cantidades recolectadas al cierre de ruta
+  const [executionId, setExecutionId] = useState<string | null>(null)
+  const [showCollectionModal, setShowCollectionModal] = useState(false)
+  const [collectionKg, setCollectionKg] = useState<Record<string, string>>({})
+  const [savingCollection, setSavingCollection] = useState(false)
 
   const todayDay = new Date().getDay() // 0=Dom ... 6=Sab
 
@@ -161,6 +175,11 @@ export default function TrackingPage() {
       toast.success('Retraso notificado a los ciudadanos de la zona.')
     }
 
+    // RF-18: capturar el executionId de la ejecucion creada al iniciar la ruta
+    function onTrackingStarted({ executionId: execId }: { executionId?: string | null }) {
+      setExecutionId(execId ?? null)
+    }
+
     function onProximityAlert({ vehicleCode, distance }: { vehicleCode: string; distance: number }) {
       const distText = distance >= 1000
         ? `${(distance / 1000).toFixed(1)} km`
@@ -177,6 +196,7 @@ export default function TrackingPage() {
     socket.on('tracking:truck_update', onTruckUpdate)
     socket.on('tracking:truck_removed', onTruckRemoved)
     socket.on('tracking:delay_reported', onDelayReported)
+    socket.on('tracking:started', onTrackingStarted)
     socket.on('proximity:alert', onProximityAlert)
     const timer = window.setTimeout(() => {
       if (socket.connected) {
@@ -193,6 +213,7 @@ export default function TrackingPage() {
       socket.off('tracking:truck_update', onTruckUpdate)
       socket.off('tracking:truck_removed', onTruckRemoved)
       socket.off('tracking:delay_reported', onDelayReported)
+      socket.off('tracking:started', onTrackingStarted)
       socket.off('proximity:alert', onProximityAlert)
     }
   }, [accessToken])
@@ -273,6 +294,40 @@ export default function TrackingPage() {
     setIsTracking(false)
     isTrackingRef.current = false
     setMyPosition(null)
+    // RF-18: al cerrar la ruta, pedir al operador las cantidades recolectadas
+    if (executionId && user?.role === 'OPERATOR') {
+      setCollectionKg({})
+      setShowCollectionModal(true)
+    }
+  }, [executionId, user?.role])
+
+  // RF-18: enviar las cantidades declaradas al backend
+  const submitCollection = useCallback(async () => {
+    if (!executionId || !accessToken) return
+    const items = COLLECTION_CATEGORIES
+      .map((c) => ({ category: c.key, quantityKg: parseFloat(collectionKg[c.key] ?? '') }))
+      .filter((i) => !Number.isNaN(i.quantityKg) && i.quantityKg >= 0)
+    if (items.length === 0) {
+      toast.warning('Ingresa al menos una cantidad o pulsa Omitir.')
+      return
+    }
+    setSavingCollection(true)
+    try {
+      await api.post(`/routes/executions/${executionId}/collection`, { items }, accessToken)
+      toast.success('Cantidades recolectadas registradas. Gracias por reportar.')
+      setShowCollectionModal(false)
+      setExecutionId(null)
+    } catch {
+      toast.error('No se pudo registrar el pesaje. Intenta de nuevo.')
+    } finally {
+      setSavingCollection(false)
+    }
+  }, [executionId, accessToken, collectionKg])
+
+  const skipCollection = useCallback(() => {
+    setShowCollectionModal(false)
+    setExecutionId(null)
+    toast.warning('Ruta cerrada sin datos de pesaje: el reporte de residuos no reflejara esta ejecucion.')
   }, [])
 
   const submitDelay = useCallback(() => {
@@ -779,6 +834,63 @@ export default function TrackingPage() {
                   className="flex-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg
                     py-2 text-sm font-semibold transition-colors">
                   Notificar retraso
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* RF-18: collection weights modal */}
+      {showCollectionModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <Truck size={16} className="text-emerald-600" /> Registro de recoleccion
+              </h2>
+              <button onClick={skipCollection}
+                className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X size={16} className="text-slate-400" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Ingresa los kilogramos aproximados recolectados por categoria.
+              Estos datos alimentan los reportes municipales.
+            </p>
+            <div className="space-y-3">
+              {COLLECTION_CATEGORIES.map((c) => (
+                <div key={c.key} className="flex items-center gap-3">
+                  <span
+                    className="w-28 shrink-0 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-white text-center"
+                    style={{ backgroundColor: c.color }}
+                  >
+                    {c.label}
+                  </span>
+                  <div className="flex-1 relative">
+                    <input
+                      type="number" min={0} step={0.5} placeholder="0"
+                      value={collectionKg[c.key] ?? ''}
+                      onChange={(e) => setCollectionKg((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-9 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">kg</span>
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
+                Puedes dejar en blanco las categorias que no apliquen a tu ruta.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button onClick={skipCollection} disabled={savingCollection}
+                  className="flex-1 border border-slate-200 rounded-lg py-2 text-sm
+                    text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50">
+                  Omitir
+                </button>
+                <button onClick={submitCollection} disabled={savingCollection}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg
+                    py-2 text-sm font-semibold transition-colors disabled:opacity-50">
+                  {savingCollection ? 'Guardando...' : 'Guardar pesaje'}
                 </button>
               </div>
             </div>

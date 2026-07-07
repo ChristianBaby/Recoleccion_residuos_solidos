@@ -105,13 +105,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens   RefreshToken[]
-  assignedRoutes  Route[]          @relation("OperatorRoutes")
-  routeExecutions RouteExecution[]
-  incidents       Incident[]
-  createdZones    Zone[]           @relation("AdminZones")
-  createdRoutes   Route[]          @relation("AdminRoutes")
-  learnVisits     LearnVisit[]
+  refreshTokens     RefreshToken[]
+  assignedRoutes    Route[]            @relation("OperatorRoutes")
+  routeExecutions   RouteExecution[]
+  incidents         Incident[]
+  createdZones      Zone[]             @relation("AdminZones")
+  createdRoutes     Route[]            @relation("AdminRoutes")
+  learnVisits       LearnVisit[]
+  pushSubscriptions PushSubscription[]
 
   @@index([email])
   @@index([dni])
@@ -286,11 +287,30 @@ model RouteExecution {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  gpsTracks GpsTrack[]
+  gpsTracks         GpsTrack[]
+  collectionRecords CollectionRecord[]
 
   @@index([routeId])
   @@index([date])
   @@map("route_executions")
+}
+
+// RF-18: Cantidades recolectadas declaradas por el operador al cierre de ruta
+model CollectionRecord {
+  id               String         @id @default(cuid())
+  routeExecutionId String
+  routeExecution   RouteExecution @relation(fields: [routeExecutionId], references: [id], onDelete: Cascade)
+
+  category   WasteCategory
+  quantityKg Float
+
+  // Trazabilidad: quién declaró la cantidad (criterio ético RF-18)
+  recordedById String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([routeExecutionId, category])
+  @@map("collection_records")
 }
 
 model GpsTrack {
@@ -345,6 +365,23 @@ model Incident {
   @@index([citizenId])
   @@index([status])
   @@map("incidents")
+}
+
+// ─── Módulo 5: Notificaciones Push PWA (RF-17) ───────────────────────────────
+
+model PushSubscription {
+  id       String @id @default(cuid())
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 // ─── Transversal: Auditoría (RF-03 / RF-04 / RF-09 — criterios éticos) ──────

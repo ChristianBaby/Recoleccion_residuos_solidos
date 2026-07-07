@@ -31,6 +31,7 @@
     "socket.io": "^4.8.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
+    "web-push": "^3.6.7",
     "zod": "^3.24.4"
   },
   "devDependencies": {
@@ -41,6 +42,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.15.21",
     "@types/nodemailer": "^6.4.17",
+    "@types/web-push": "^3.6.4",
     "jest": "^30.4.2",
     "prisma": "^6.8.2",
     "ts-jest": "^29.4.11",

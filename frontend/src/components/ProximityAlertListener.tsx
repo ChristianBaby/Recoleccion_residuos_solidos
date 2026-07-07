@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { getSocket } from '@/lib/socket'
-import { Bell, Truck, X, Clock } from 'lucide-react'
+import { subscribeToPush, unsubscribeFromPush, getCurrentPushSubscription } from '@/lib/push'
+import { Bell, BellOff, Truck, X, Clock } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface ProximityAlert {
   vehicleCode: string
@@ -134,22 +136,85 @@ export default function ProximityAlertListener() {
 }
 
 export function NotificationPermissionButton() {
+  const { accessToken } = useAuth()
   const [permission, setPermission] = useState<NotificationPermission>(() => (
     typeof Notification === 'undefined' ? 'denied' : Notification.permission
   ))
+  // RF-17: estado de la suscripción Web Push (null = aún cargando)
+  const [pushActive, setPushActive] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  if (permission !== 'default') return null
+  useEffect(() => {
+    if (permission !== 'granted') {
+      setPushActive(false)
+      return
+    }
+    getCurrentPushSubscription()
+      .then((sub) => setPushActive(Boolean(sub)))
+      .catch(() => setPushActive(false))
+  }, [permission])
+
+  if (permission === 'denied' || pushActive === null) return null
+
+  async function enable() {
+    if (!accessToken) return
+    setBusy(true)
+    try {
+      const granted = permission === 'granted'
+        ? true
+        : (await Notification.requestPermission()) === 'granted'
+      setPermission(Notification.permission)
+      if (!granted) return
+      const subscribed = await subscribeToPush(accessToken)
+      setPushActive(subscribed)
+      if (subscribed) {
+        toast.success('Notificaciones push activadas: recibirás alertas aunque cierres la app.')
+      }
+    } catch {
+      toast.error('No se pudo activar las notificaciones push.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disable() {
+    if (!accessToken) return
+    setBusy(true)
+    try {
+      await unsubscribeFromPush(accessToken)
+      setPushActive(false)
+      toast.success('Notificaciones push desactivadas.')
+    } catch {
+      toast.error('No se pudo desactivar las notificaciones.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (pushActive) {
+    return (
+      <button
+        onClick={disable}
+        disabled={busy}
+        title="Recibes alertas de cercanía y retrasos aunque la app esté cerrada"
+        className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50
+          border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-100 transition-colors disabled:opacity-50"
+      >
+        <BellOff size={13} />
+        Desactivar notificaciones push
+      </button>
+    )
+  }
 
   return (
     <button
-      onClick={() => {
-        Notification.requestPermission().then((p) => setPermission(p))
-      }}
+      onClick={enable}
+      disabled={busy}
       className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50
-        border border-emerald-200 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors"
+        border border-emerald-200 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors disabled:opacity-50"
     >
       <Bell size={13} />
-      Activar notificaciones de proximidad
+      {busy ? 'Activando…' : 'Activar notificaciones de proximidad'}
     </button>
   )
 }
