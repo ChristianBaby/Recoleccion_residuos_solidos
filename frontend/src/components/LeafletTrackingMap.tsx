@@ -242,6 +242,7 @@ interface Props {
   routeOverlay?: RouteOverlay | null
   isTracking?: boolean
   selectedZoneId?: string
+  centerCoordinates?: { lat: number; lng: number; time: number } | null
 }
 
 
@@ -251,9 +252,20 @@ interface Props {
 export default function LeafletTrackingMap({
   zones, trucks, myPosition, idlePosition,
   ownSocketId, routeOverlay, isTracking = false, selectedZoneId,
+  centerCoordinates,
 }: Props) {
   const mapRef = useRef<L.Map | null>(null)
   const onReady = useCallback((m: L.Map) => { mapRef.current = m }, [])
+
+  useEffect(() => {
+    if (centerCoordinates && mapRef.current) {
+      mapRef.current.setView(
+        [centerCoordinates.lat, centerCoordinates.lng],
+        Math.max(mapRef.current.getZoom(), 16),
+        { animate: true }
+      )
+    }
+  }, [centerCoordinates])
 
   const waypoints = routeOverlay?.waypoints ?? []
   const polyline: [number, number][] = waypoints.map((wp) => [wp.lat, wp.lng])

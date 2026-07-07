@@ -73,6 +73,7 @@ export default function TrackingPage() {
   const [delayReason, setDelayReason] = useState('')
   const [activeTab, setActiveTab] = useState<'panel' | 'map'>('map')
   const [delayReported, setDelayReported] = useState(false)
+  const [mapCenterTrigger, setMapCenterTrigger] = useState<{ lat: number; lng: number; time: number } | null>(null)
 
   // RF-18: registro de cantidades recolectadas al cierre de ruta
   const [executionId, setExecutionId] = useState<string | null>(null)
@@ -328,6 +329,11 @@ export default function TrackingPage() {
     setShowCollectionModal(false)
     setExecutionId(null)
     toast.warning('Ruta cerrada sin datos de pesaje: el reporte de residuos no reflejara esta ejecucion.')
+  }, [])
+
+  const handleCenterOnTruck = useCallback((lat: number, lng: number) => {
+    setMapCenterTrigger({ lat, lng, time: Date.now() })
+    setActiveTab('map')
   }, [])
 
   const submitDelay = useCallback(() => {
@@ -645,16 +651,18 @@ export default function TrackingPage() {
                 </p>
                 <div className="space-y-1.5">
                   {trucks.map((t) => (
-                    <div key={t.socketId}
-                      className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-lg">
-                      <Truck size={14} className="text-slate-600 shrink-0" />
+                    <button key={t.socketId}
+                      onClick={() => handleCenterOnTruck(t.lat, t.lng)}
+                      title="Centrar mapa en este vehículo"
+                      className="w-full text-left flex items-center gap-2.5 p-2.5 bg-slate-50 hover:bg-blue-50/50 active:scale-[0.98] border border-slate-100 hover:border-blue-200 rounded-lg transition-all">
+                      <Truck size={14} className="text-blue-600 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-800 truncate">{t.vehicleCode || t.operatorName}</p>
-                        <p className="text-xs text-slate-400">
-                          {new Date(t.lastSeen).toLocaleTimeString('es-PE')}
+                        <p className="text-xs font-semibold text-slate-800 truncate">{t.vehicleCode || t.operatorName}</p>
+                        <p className="text-[10px] text-slate-450 mt-0.5">
+                          Última señal: {new Date(t.lastSeen).toLocaleTimeString('es-PE')}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -671,19 +679,21 @@ export default function TrackingPage() {
           }`}>
             <p className="text-xs font-semibold text-slate-600">Camiones activos ({trucks.length})</p>
             {trucks.map((t) => (
-              <div key={t.socketId}
-                className="flex items-start gap-2.5 p-2.5 bg-slate-50 rounded-lg">
-                <Truck size={14} className="text-slate-600 shrink-0 mt-0.5" />
+              <button key={t.socketId}
+                onClick={() => handleCenterOnTruck(t.lat, t.lng)}
+                title="Centrar mapa en este vehículo"
+                className="w-full text-left flex items-start gap-2.5 p-2.5 bg-slate-50 hover:bg-blue-50/50 active:scale-[0.98] border border-slate-100 hover:border-blue-200 rounded-lg transition-all">
+                <Truck size={14} className="text-blue-600 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-slate-800 truncate">{t.vehicleCode || t.operatorName}</p>
                   {t.speed !== undefined && (
-                    <p className="text-xs text-slate-500">{Math.round(t.speed)} km/h</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{Math.round(t.speed)} km/h</p>
                   )}
-                  <p className="text-xs text-slate-400">
-                    {new Date(t.lastSeen).toLocaleTimeString('es-PE')}
+                  <p className="text-[10px] text-slate-450 mt-0.5">
+                    Última señal: {new Date(t.lastSeen).toLocaleTimeString('es-PE')}
                   </p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -701,6 +711,7 @@ export default function TrackingPage() {
             routeOverlay={routeOverlay}
             isTracking={isTracking}
             selectedZoneId={mapSelectedZoneId}
+            centerCoordinates={mapCenterTrigger}
           />
           {/* Map legend for operator */}
           {user?.role === 'OPERATOR' && routeOverlay && (
