@@ -705,7 +705,7 @@ export default function TrackingPage() {
           {/* Map legend for operator */}
           {user?.role === 'OPERATOR' && routeOverlay && (
             <div className="absolute bottom-4 right-4 z-[1000] bg-white rounded-xl shadow-lg
-              border border-slate-200 px-3 py-2.5 space-y-1.5 text-xs">
+              border border-slate-200 px-3 py-2.5 space-y-1.5 text-xs hidden md:block">
               <p className="font-semibold text-slate-600 uppercase tracking-wide text-xs mb-2">
                 Leyenda
               </p>
