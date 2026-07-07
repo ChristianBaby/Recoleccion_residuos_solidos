@@ -260,8 +260,8 @@ export default function TrackingPage() {
           speed: speed != null ? speed * 3.6 : undefined,
         })
       },
-      () => toast.error('No se pudo obtener la ubicacion GPS'),
-      { enableHighAccuracy: true, maximumAge: 5000 },
+      () => toast.error('No se pudo obtener la ubicación GPS. Verifica los permisos de ubicación de tu navegador.'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     )
   }, [selectedRouteId])
 
