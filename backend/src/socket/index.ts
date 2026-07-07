@@ -11,6 +11,8 @@ export function setupSocketServer(httpServer: HttpServer, frontendUrl: string): 
     .filter(Boolean)
   const io = new Server(httpServer, {
     cors: { origin: allowedOrigins, credentials: true },
+    pingInterval: 10000, // Envía un ping cada 10 segundos para mantener la conexión activa en redes móviles
+    pingTimeout: 5000,   // Espera 5 segundos antes de declarar la conexión como muerta
   })
 
   // JWT auth middleware para cada conexión WebSocket

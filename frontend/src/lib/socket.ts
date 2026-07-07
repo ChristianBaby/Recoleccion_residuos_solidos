@@ -19,9 +19,11 @@ export function getSocket(token: string): Socket {
   socket = io(SOCKET_URL, {
     auth: { token },
     autoConnect: true,
-    transports: ['polling', 'websocket'],
-    reconnectionAttempts: 5,
-    reconnectionDelayMax: 10000,
+    transports: ['websocket', 'polling'], // Prioriza websockets nativos (evita retrasos de polling)
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,              // Intenta reconectar tras 1s
+    reconnectionDelayMax: 5000,           // Retraso máximo de 5s entre intentos (evita esperas largas)
+    timeout: 20000,
   })
 
   return socket
