@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { getSocket } from '@/lib/socket'
-import { subscribeToPush, unsubscribeFromPush, getCurrentPushSubscription } from '@/lib/push'
+import { subscribeToPush, unsubscribeFromPush, getCurrentPushSubscription, isPushSupported } from '@/lib/push'
 import { Bell, BellOff, Truck, X, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -72,6 +72,40 @@ export default function ProximityAlertListener() {
       socket.off('proximity:alert', onProximityAlert)
       socket.off('route:delay_alert', onDelayAlert)
     }
+  }, [accessToken, user?.role])
+
+  // RF-17: Auto-solicitud de permiso y suscripción proactiva para Ciudadanos
+  useEffect(() => {
+    if (user?.role !== 'CITIZEN' || !accessToken) return
+
+    async function handleAutoPush() {
+      const token = accessToken
+      if (!token) return
+      if (!isPushSupported()) return
+
+      try {
+        const currentPermission = Notification.permission
+
+        if (currentPermission === 'default') {
+          // Solicitar permiso proactivamente al cargar el dashboard
+          const permissionResult = await Notification.requestPermission()
+          if (permissionResult === 'granted') {
+            await subscribeToPush(token)
+          }
+        } else if (currentPermission === 'granted') {
+          // Si ya tiene permiso pero no hay suscripción activa, la registramos
+          const sub = await getCurrentPushSubscription()
+          if (!sub) {
+            await subscribeToPush(token)
+          }
+        }
+      } catch (error) {
+        console.error('[Push] Error en la auto-suscripción:', error)
+      }
+    }
+
+    const timer = setTimeout(handleAutoPush, 2000)
+    return () => clearTimeout(timer)
   }, [accessToken, user?.role])
 
   // Solicitar permiso de notificación del navegador una sola vez
@@ -169,8 +203,15 @@ export function NotificationPermissionButton() {
       setPushActive(subscribed)
       if (subscribed) {
         toast.success('Notificaciones push activadas: recibirás alertas aunque cierres la app.')
+      } else {
+        if (process.env.NODE_ENV !== 'production') {
+          toast.warning('En desarrollo local las notificaciones no se activan porque el Service Worker está desactivado.')
+        } else {
+          toast.error('Las notificaciones push están desactivadas en el servidor o el navegador no las soporta.')
+        }
       }
-    } catch {
+    } catch (err) {
+      console.error('[Push] Error al activar notificaciones:', err)
       toast.error('No se pudo activar las notificaciones push.')
     } finally {
       setBusy(false)
