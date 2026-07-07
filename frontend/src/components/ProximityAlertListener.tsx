@@ -198,10 +198,11 @@ export function NotificationPermissionButton() {
         disabled={busy}
         title="Recibes alertas de cercanía y retrasos aunque la app esté cerrada"
         className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50
-          border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-100 transition-colors disabled:opacity-50"
+          border border-slate-200 rounded-lg px-2 py-1.5 sm:px-3 hover:bg-slate-100 transition-colors disabled:opacity-50 shrink-0"
       >
-        <BellOff size={13} />
-        Desactivar notificaciones push
+        <BellOff size={13} className="shrink-0" />
+        <span className="hidden sm:inline">Desactivar notificaciones push</span>
+        <span className="sm:hidden">Desactivar push</span>
       </button>
     )
   }
@@ -211,10 +212,18 @@ export function NotificationPermissionButton() {
       onClick={enable}
       disabled={busy}
       className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50
-        border border-emerald-200 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+        border border-emerald-200 rounded-lg px-2 py-1.5 sm:px-3 hover:bg-emerald-100 transition-colors disabled:opacity-50 shrink-0"
     >
-      <Bell size={13} />
-      {busy ? 'Activando…' : 'Activar notificaciones de proximidad'}
+      <Bell size={13} className="shrink-0" />
+      {busy ? (
+        <span>Activando…</span>
+      ) : (
+        <>
+          <span className="hidden sm:inline">Activar notificaciones de proximidad</span>
+          <span className="sm:hidden">Activar alertas</span>
+        </>
+      )}
     </button>
   )
+
 }

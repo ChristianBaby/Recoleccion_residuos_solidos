@@ -107,12 +107,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {isSidebarOpen && (
         <div
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity md:hidden"
+          className="fixed inset-0 z-[9998] bg-slate-900/40 backdrop-blur-xs transition-opacity md:hidden"
         />
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+      <aside className={`fixed md:static inset-y-0 left-0 z-[9999] w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-transform duration-300 ease-in-out md:translate-x-0 ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Logo */}
@@ -192,7 +192,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Menu size={18} />
               </button>
-              <div className="text-xs text-slate-400 font-medium capitalize">
+              <div className="text-xs text-slate-400 font-medium capitalize hidden sm:block">
                 {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
             </div>
