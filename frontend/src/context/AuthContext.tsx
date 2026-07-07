@@ -146,6 +146,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval)
   }, [user, router])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleRefreshed = (e: Event) => {
+      const newToken = (e as CustomEvent).detail
+      setAccessToken(newToken)
+    }
+    window.addEventListener('session-refreshed', handleRefreshed)
+    return () => window.removeEventListener('session-refreshed', handleRefreshed)
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{

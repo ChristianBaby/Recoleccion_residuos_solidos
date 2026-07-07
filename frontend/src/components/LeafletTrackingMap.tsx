@@ -191,7 +191,8 @@ function FitToZones({
   const map = useMap()
 
   useEffect(() => {
-    if (routeId && hasRouteBounds) return
+    // Si no hay zona seleccionada explícitamente y hay una ruta activa, priorizamos los límites de la ruta
+    if (!selectedZoneId && routeId && hasRouteBounds) return
 
     const activeZones = zones.filter((z) => z.isActive)
     const selectedZone = activeZones.find((z) => z.id === selectedZoneId)
@@ -208,7 +209,7 @@ function FitToZones({
       map.fitBounds(L.latLngBounds(points), {
         padding: selectedZone ? [70, 70] : [45, 45],
         maxZoom: selectedZone ? 15 : 14,
-        animate: false,
+        animate: true, // Activamos animación para una transición de cámara fluida y premium
       })
     }, 0)
     return () => {
