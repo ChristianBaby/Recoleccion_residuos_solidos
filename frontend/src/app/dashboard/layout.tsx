@@ -184,7 +184,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-auto flex flex-col justify-between bg-slate-50">
         <div className="flex-1 flex flex-col">
           {/* Header Superior */}
-          <header className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between shrink-0">
+          <header className="relative z-30 bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsSidebarOpen(true)}
