@@ -104,6 +104,13 @@ export default function TrackingPage() {
     }
   }, [accessToken, user?.id, user?.role, todayDay])
 
+  // --- Auto-select citizen's assigned zone on mount ---
+  useEffect(() => {
+    if (user?.role === 'CITIZEN' && user?.zoneId) {
+      setSelectedZoneId(user.zoneId)
+    }
+  }, [user?.role, user?.zoneId])
+
   // --- Load full route detail (with waypoints) when operator selects a route ---
   useEffect(() => {
     if (!accessToken || !selectedRouteId) {
