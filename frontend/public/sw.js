@@ -5,7 +5,7 @@
  *  - Peticiones a la API y WebSockets: nunca se interceptan (datos siempre frescos;
  *    el modo offline de incidencias ya lo maneja IndexedDB en el cliente).
  */
-const VERSION = 'v1'
+const VERSION = 'v2'
 const STATIC_CACHE = `static-${VERSION}`
 const PAGES_CACHE = `pages-${VERSION}`
 const OFFLINE_URL = '/offline.html'
@@ -107,6 +107,8 @@ self.addEventListener('push', (event) => {
       icon: data.icon || '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       vibrate: [100, 50, 100],
+      tag: data.tag || undefined,
+      renotify: Boolean(data.tag),
       data: { url: data.url || '/dashboard' },
     })
   )

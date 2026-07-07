@@ -83,6 +83,7 @@ async function checkProximityAlerts(io: Server, truck: ActiveTruck) {
         title: '🚛 El camión está cerca',
         body: `Vehículo ${truck.vehicleCode} a ${distText} de tu domicilio. Prepara tus residuos.`,
         url: '/dashboard/tracking',
+        tag: 'proximity-alert',
       }).catch((err) => console.error('[Push] Error en alerta de cercanía:', err))
     }
   }
@@ -316,6 +317,7 @@ export function setupTrackingHandlers(io: Server, socket: Socket) {
         title: '⏰ Retraso en la ruta de recolección',
         body: `${execution.route.name}: retraso de ${delayMinutes} min${reason ? ` (${reason})` : ''}.`,
         url: '/dashboard/tracking',
+        tag: 'delay-alert',
       }).catch((err) => console.error('[Push] Error en alerta de retraso:', err))
     }).catch(() => { /* no bloquear alerta websocket */ })
 

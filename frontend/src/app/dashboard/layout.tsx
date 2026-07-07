@@ -184,7 +184,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-auto flex flex-col justify-between bg-slate-50">
         <div className="flex-1 flex flex-col">
           {/* Header Superior */}
-          <header className="relative z-30 bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between shrink-0">
+          <header className="relative z-[1050] bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsSidebarOpen(true)}
@@ -219,7 +219,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-[100] animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="absolute right-0 mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-[9999] animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-800 font-bold text-xs shrink-0">
                         {user?.firstName?.[0]?.toUpperCase()}{user?.lastName?.[0]?.toUpperCase()}

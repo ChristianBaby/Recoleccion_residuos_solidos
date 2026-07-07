@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { getSocket } from '@/lib/socket'
-import { subscribeToPush, unsubscribeFromPush, getCurrentPushSubscription, isPushSupported } from '@/lib/push'
+import { subscribeToPush, unsubscribeFromPush, getCurrentPushSubscription, isPushSupported, showLocalNotification } from '@/lib/push'
+import { ApiError } from '@/lib/api'
 import { Bell, BellOff, Truck, X, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -45,24 +46,20 @@ export default function ProximityAlertListener() {
 
     function onProximityAlert(data: ProximityAlert) {
       showBanner({ type: 'proximity', data })
-      if (Notification.permission === 'granted') {
-        new Notification('🚛 El camión está cerca', {
-          body: `El recolector está a ${data.distance} m de tu domicilio. ¡Prepara tus residuos!`,
-          icon: '/favicon.ico',
-          tag: 'proximity-alert',
-        })
-      }
+      showLocalNotification('🚛 El camión está cerca', {
+        body: `El recolector está a ${data.distance} m de tu domicilio. ¡Prepara tus residuos!`,
+        icon: '/icons/icon-192.png',
+        tag: 'proximity-alert',
+      })
     }
 
     function onDelayAlert(data: DelayAlert) {
       showBanner({ type: 'delay', data })
-      if (Notification.permission === 'granted') {
-        new Notification('⏰ Retraso en la ruta de recolección', {
-          body: `La ruta "${data.routeName}" lleva ${data.delayMinutes} min de retraso.${data.reason ? ` Motivo: ${data.reason}` : ''}`,
-          icon: '/favicon.ico',
-          tag: 'delay-alert',
-        })
-      }
+      showLocalNotification('⏰ Retraso en la ruta de recolección', {
+        body: `La ruta "${data.routeName}" lleva ${data.delayMinutes} min de retraso.${data.reason ? ` Motivo: ${data.reason}` : ''}`,
+        icon: '/icons/icon-192.png',
+        tag: 'delay-alert',
+      })
     }
 
     socket.on('proximity:alert', onProximityAlert)
@@ -74,7 +71,8 @@ export default function ProximityAlertListener() {
     }
   }, [accessToken, user?.role])
 
-  // RF-17: Auto-solicitud de permiso y suscripción proactiva para Ciudadanos
+  // RF-17: el sistema solicita el permiso directamente al ciudadano al entrar
+  // al dashboard y lo suscribe; no hace falta que pulse ningún botón.
   useEffect(() => {
     if (user?.role !== 'CITIZEN' || !accessToken) return
 
@@ -87,17 +85,18 @@ export default function ProximityAlertListener() {
         const currentPermission = Notification.permission
 
         if (currentPermission === 'default') {
-          // Solicitar permiso proactivamente al cargar el dashboard
+          // Preguntar directamente al usuario al cargar el dashboard
           const permissionResult = await Notification.requestPermission()
           if (permissionResult === 'granted') {
-            await subscribeToPush(token)
+            const result = await subscribeToPush(token)
+            if (result === 'subscribed') {
+              toast.success('Notificaciones activadas: te avisaremos cuando el camión esté cerca, incluso con la app cerrada.')
+            }
           }
         } else if (currentPermission === 'granted') {
-          // Si ya tiene permiso pero no hay suscripción activa, la registramos
-          const sub = await getCurrentPushSubscription()
-          if (!sub) {
-            await subscribeToPush(token)
-          }
+          // Ya tiene permiso: garantizar que la suscripción exista y esté
+          // registrada en el backend (repara suscripciones obsoletas).
+          await subscribeToPush(token)
         }
       } catch (error) {
         console.error('[Push] Error en la auto-suscripción:', error)
@@ -108,7 +107,6 @@ export default function ProximityAlertListener() {
     return () => clearTimeout(timer)
   }, [accessToken, user?.role])
 
-  // Solicitar permiso de notificación del navegador una sola vez
   if (!banner) return null
 
   return (
@@ -178,41 +176,58 @@ export function NotificationPermissionButton() {
   const [pushActive, setPushActive] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // Refleja los cambios hechos por la auto-suscripción (o por otra pestaña)
   useEffect(() => {
-    if (permission !== 'granted') {
-      setPushActive(false)
-      return
+    function refresh() {
+      setPermission(typeof Notification === 'undefined' ? 'denied' : Notification.permission)
+      getCurrentPushSubscription()
+        .then((sub) => setPushActive(Boolean(sub)))
+        .catch(() => setPushActive(false))
     }
-    getCurrentPushSubscription()
-      .then((sub) => setPushActive(Boolean(sub)))
-      .catch(() => setPushActive(false))
-  }, [permission])
+    refresh()
+    window.addEventListener('push:subscription-changed', refresh)
+    return () => window.removeEventListener('push:subscription-changed', refresh)
+  }, [])
 
-  if (permission === 'denied' || pushActive === null) return null
+  if (pushActive === null) return null
 
   async function enable() {
     if (!accessToken) return
     setBusy(true)
     try {
-      const granted = permission === 'granted'
+      const granted = Notification.permission === 'granted'
         ? true
         : (await Notification.requestPermission()) === 'granted'
       setPermission(Notification.permission)
-      if (!granted) return
-      const subscribed = await subscribeToPush(accessToken)
-      setPushActive(subscribed)
-      if (subscribed) {
+      if (!granted) {
+        toast.warning('Sin el permiso del navegador no podemos avisarte. Puedes habilitarlo desde el candado de la barra de direcciones.')
+        return
+      }
+      const result = await subscribeToPush(accessToken)
+      setPushActive(result === 'subscribed')
+      if (result === 'subscribed') {
         toast.success('Notificaciones push activadas: recibirás alertas aunque cierres la app.')
-      } else {
+      } else if (result === 'no-sw') {
         if (process.env.NODE_ENV !== 'production') {
           toast.warning('En desarrollo local las notificaciones no se activan porque el Service Worker está desactivado.')
         } else {
-          toast.error('Las notificaciones push están desactivadas en el servidor o el navegador no las soporta.')
+          toast.error('La app aún se está instalando en tu navegador. Recarga la página e inténtalo de nuevo.')
         }
+      } else {
+        toast.error('Las notificaciones push están desactivadas en el servidor (faltan claves VAPID).')
       }
     } catch (err) {
       console.error('[Push] Error al activar notificaciones:', err)
-      toast.error('No se pudo activar las notificaciones push.')
+      const name = (err as DOMException)?.name
+      if (name === 'NotAllowedError') {
+        toast.error('El navegador bloqueó las notificaciones para este sitio. Habilítalas desde el candado de la barra de direcciones.')
+      } else if (name === 'AbortError') {
+        toast.error('El servicio de notificaciones del navegador no respondió. Verifica tu conexión e inténtalo de nuevo.')
+      } else if (err instanceof ApiError) {
+        toast.error(`No se pudo registrar la suscripción en el servidor: ${err.message}`)
+      } else {
+        toast.error('No se pudo activar las notificaciones push. Revisa tu conexión e inténtalo de nuevo.')
+      }
     } finally {
       setBusy(false)
     }
@@ -230,6 +245,21 @@ export function NotificationPermissionButton() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (permission === 'denied') {
+    return (
+      <button
+        onClick={() => toast.info('Las notificaciones están bloqueadas para este sitio. Haz clic en el candado de la barra de direcciones y permite las notificaciones.')}
+        title="Notificaciones bloqueadas por el navegador"
+        className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50
+          border border-slate-200 rounded-lg px-2 py-1.5 sm:px-3 hover:bg-slate-100 transition-colors shrink-0"
+      >
+        <BellOff size={13} className="shrink-0" />
+        <span className="hidden sm:inline">Notificaciones bloqueadas</span>
+        <span className="sm:hidden">Bloqueadas</span>
+      </button>
+    )
   }
 
   if (pushActive) {

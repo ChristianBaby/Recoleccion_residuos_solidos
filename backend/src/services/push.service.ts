@@ -63,6 +63,9 @@ export interface PushPayload {
   title: string
   body: string
   url?: string
+  // Mismo tag que la notificación local del cliente: el navegador las
+  // colapsa en una sola en vez de duplicarlas cuando la app está abierta.
+  tag?: string
 }
 
 // Envía el push a todas las suscripciones de los usuarios indicados.
