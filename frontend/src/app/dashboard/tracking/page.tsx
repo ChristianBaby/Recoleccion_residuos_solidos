@@ -156,7 +156,6 @@ export default function TrackingPage() {
       toast('🚛 ¡El camión está cerca!', {
         description: `${operatorName} está a ${distText} de tu domicilio. Prepara tus residuos.`,
         duration: 30000,
-        important: true,
       })
     }
 
