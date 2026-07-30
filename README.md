@@ -260,6 +260,21 @@ Entidades principales: `User`, `Zone`, `Route`, `Waypoint`, `Vehicle`, `RouteExe
 
 ---
 
+## 📱 Arquitectura e Integración PWA (Progressive Web App)
+
+El sistema integra capacidades de **Progressive Web App (PWA)** que permiten instalar la aplicación en teléfonos móviles y computadoras como si fuera una app nativa, con soporte para funcionamiento offline y notificaciones push en segundo plano (RF-17).
+
+### Archivos de la PWA (`frontend/`)
+
+| Archivo | Ruta local | Descripción |
+|---|---|---|
+| 📋 **Manifiesto PWA** | [manifest.ts](file:///d:/Proyectos/Ing%20de%20Sofware/recoleccion/frontend/src/app/manifest.ts) | Define el nombre (*Sistema de Recolección — Poroy*), íconos responsive (`192x192`, `512x512`, `maskable`), color de tema (`#0f766e`) y modo ejecutable `display: "standalone"`. |
+| ⚙️ **Service Worker** | [sw.js](file:///d:/Proyectos/Ing%20de%20Sofware/recoleccion/frontend/public/sw.js) | Script en segundo plano para el almacenamiento en caché, soporte offline y captura de eventos WebPush VAPID con la app cerrada (`self.registration.showNotification`). |
+| 🌐 **Vista Offline** | [offline.html](file:///d:/Proyectos/Ing%20de%20Sofware/recoleccion/frontend/public/offline.html) | Página alternativa presentada automáticamente cuando el usuario pierde la conexión a internet. |
+| 🔄 **Registro SW** | [ServiceWorkerRegister.tsx](file:///d:/Proyectos/Ing%20de%20Sofware/recoleccion/frontend/src/components/ServiceWorkerRegister.tsx) | Componente cliente que inicializa `navigator.serviceWorker.register('/sw.js')` al cargar la aplicación en producción. |
+
+---
+
 ## Ejecución local
 
 ### Prerrequisitos
