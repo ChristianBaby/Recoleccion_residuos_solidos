@@ -348,8 +348,10 @@ function IncidentsPageContent() {
         setUploadingImage(true)
         try {
           imageUrl = await uploadToImgBB(imageFile)
-        } catch {
-          toast.error('No se pudo subir la imagen. Se guardará con la foto anterior o sin foto.')
+        } catch (err) {
+          console.warn('[Incidents] No se pudo subir a ImgBB, usando fallback Base64 local:', err)
+          imageUrl = await fileToBase64(imageFile)
+          toast.info('Foto procesada y adjuntada en formato directo comprimido.')
         } finally {
           setUploadingImage(false)
         }
