@@ -35,16 +35,6 @@ const navItems: NavItem[] = [
     roles: ['ADMIN'],
   },
   {
-    href: '/dashboard/waste-types',
-    label: 'Residuos',
-    roles: ['ADMIN', 'CITIZEN', 'OPERATOR'],
-  },
-  {
-    href: '/dashboard/learn',
-    label: 'Aprende a segregar',
-    roles: ['ADMIN', 'CITIZEN', 'OPERATOR'],
-  },
-  {
     href: '/dashboard/incidents',
     label: 'Incidencias',
     roles: ['ADMIN', 'CITIZEN', 'OPERATOR'],

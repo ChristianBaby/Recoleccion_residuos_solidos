@@ -10,9 +10,9 @@ Sistema web completo para la gestión de la recolección de residuos sólidos se
 
 | Componente | Plataforma | URL |
 |---|---|---|
-| Frontend (Next.js) | Vercel | [recoleccion-residuos.vercel.app](https://recoleccion-residuos.vercel.app) |
-| Backend (Express) | Railway | API REST + WebSocket |
-| Base de datos (PostgreSQL) | Railway | Gestionada vía Prisma ORM |
+| Frontend (Next.js, PWA) | Dokploy (VPS) | [sistemarss.ecosdelseo.com](https://sistemarss.ecosdelseo.com) |
+| Backend (Express) | Dokploy (VPS) | [api-sistemarss.ecosdelseo.com](https://api-sistemarss.ecosdelseo.com) — API REST + WebSocket |
+| Base de datos (PostgreSQL) | Dokploy (VPS) | Gestionada vía Prisma ORM |
 
 ---
 
@@ -23,6 +23,7 @@ Sistema web completo para la gestión de la recolección de residuos sólidos se
 - Tailwind CSS v4
 - Leaflet + react-leaflet — mapas interactivos con polígonos GeoJSON, rutas y marcadores GPS
 - Socket.IO client — rastreo en tiempo real
+- PWA: service worker propio (`public/sw.js`) con caché offline, manifest y notificaciones **Web Push** (RF-17)
 - Sonner — notificaciones toast
 - Lucide React — iconografía
 
@@ -31,11 +32,12 @@ Sistema web completo para la gestión de la recolección de residuos sólidos se
 - Prisma ORM + PostgreSQL
 - Socket.IO — servidor de eventos en tiempo real
 - JWT + bcrypt — autenticación y hash de contraseñas
+- `web-push` — notificaciones Web Push con claves VAPID (RF-17)
+- Brevo — envío de correos transaccionales (verificación, recuperación, alertas de retraso)
 - Agregaciones Prisma para reportes (la exportación CSV/Excel/PDF se genera en el cliente)
 
 **Infraestructura**
-- Vercel (frontend con CI/CD automático desde `main`)
-- Railway (backend + base de datos PostgreSQL, nixpacks)
+- Dokploy sobre VPS propio: frontend, backend y base de datos PostgreSQL como aplicaciones gestionadas con despliegue desde `main`
 
 ---
 
@@ -43,7 +45,7 @@ Sistema web completo para la gestión de la recolección de residuos sólidos se
 
 ```
 ┌─────────────────────────────────┐     HTTPS / WS
-│  Next.js (Vercel)               │ ◄──────────────► Express + Socket.IO (Railway)
+│  Next.js PWA (Dokploy)          │ ◄──────────────► Express + Socket.IO (Dokploy)
 │  - App Router (RSC + Client)    │                   │
 │  - Leaflet (SSR desactivado)    │                   ├─ REST API  /api/v1/...
 │  - Socket.IO client             │                   └─ Prisma ──► PostgreSQL
@@ -127,11 +129,11 @@ El administrador crea y edita rutas directamente sobre el mapa interactivo.
 
 ---
 
-### RF-13 · Alertas de retraso en tiempo real
+### RF-13 · Alertas de retraso o incidencias en rutas
 
 - El operador reporta un retraso desde el panel de turno indicando minutos y motivo
-- El servidor emite el evento `tracking:delay_reported` a todos los ciudadanos de la zona activa
-- Los ciudadanos reciben un toast de notificación inmediato con la información del retraso
+- El servidor emite el evento `route:delay_alert` a todos los ciudadanos de la zona activa y al panel de administración
+- Los ciudadanos reciben la alerta por **tres canales**: banner en tiempo real (Socket.IO), **correo formal** (Brevo) y **notificación push** con la app cerrada (RF-17)
 - Se registra historial de retrasos asociado a la ejecución de la ruta
 
 ---
@@ -145,11 +147,13 @@ El administrador crea y edita rutas directamente sobre el mapa interactivo.
 
 ---
 
-### RF-12 · Seguimiento ciudadano por zona
+### RF-12 · Notificación de cercanía del camión
 
-- El ciudadano selecciona su zona en el panel de rastreo y se suscribe a la sala Socket.IO correspondiente
-- Ve en el mapa todos los camiones activos en esa zona con nombre del operador, velocidad y última señal
-- Panel lateral con listado de camiones activos en tiempo real
+- El ciudadano se suscribe a la sala Socket.IO de su zona y ve en el mapa los camiones activos con velocidad y última señal
+- Cuando el camión entra al **radio de alerta configurable** del domicilio (100–2000 m, por defecto 500 m), el servidor emite `proximity:alert` al ciudadano
+- La alerta llega como banner en pantalla, notificación del navegador con la app abierta y **push con la app cerrada** (RF-17)
+- **Debounce**: máximo una notificación por camión cada 5 minutos
+- Panel lateral con listado de camiones activos en tiempo real; los ítems son clicables y centran el mapa en el camión
 
 ---
 
@@ -179,12 +183,15 @@ El administrador crea y edita rutas directamente sobre el mapa interactivo.
 Complementa RF-12 y RF-13: las alertas llegan al ciudadano aunque la aplicación esté cerrada.
 
 - Suscripción **Web Push con claves VAPID**: el navegador se suscribe vía `PushManager` y la suscripción se persiste en `PushSubscription` asociada al usuario
-- Opt-in explícito desde el panel del ciudadano (botón "Activar notificaciones"), con opción de desuscribirse en cualquier momento
+- **Consentimiento explícito**: al entrar al panel, el sistema solicita directamente el permiso de notificaciones al ciudadano (diálogo nativo del navegador — nada se activa sin que él acepte) y lo suscribe automáticamente si concede el permiso
+- El botón del encabezado muestra el estado (activo / bloqueado) y permite **desuscribirse o reactivar** en cualquier momento
+- **Auto-reparación de suscripciones**: si la suscripción del navegador quedó obsoleta (p. ej. rotación de claves VAPID), se anula y regenera automáticamente al cargar el panel
 - El servidor envía push en los eventos de **cercanía del camión** (< radio configurado, RF-12) y **retraso reportado** (RF-13), reutilizando el debounce de 5 minutos
+- **Anti-duplicados**: la notificación local (app abierta) y el push comparten el mismo `tag`, de modo que el navegador las colapsa en una sola
 - Las suscripciones muertas (404/410 del push service) se depuran automáticamente
 - El service worker muestra la notificación y al tocarla abre la vista de rastreo
 - Payload sin datos personales: solo código de vehículo, distancia y mensaje del evento
-- Sin claves VAPID configuradas el módulo queda desactivado de forma segura (Socket.IO y correos siguen operando)
+- Sin claves VAPID configuradas el módulo queda desactivado de forma segura (Socket.IO y correos siguen operando), y la interfaz informa el motivo con mensajes de error específicos
 
 ---
 
@@ -234,13 +241,17 @@ Alimenta el reporte RF-14 con datos reales de recolección.
 
 ```
 User ──── Zone ──── Route ──── Waypoint
-           │          │
-           │        Vehicle
-           │          │
-           │      RouteExecution ── GpsTrack
-           │
-         Incident
-         LearnVisit
+  │        │          │
+  │        │        Vehicle
+  │        │          │
+  │        │      RouteExecution ── GpsTrack
+  │        │          │
+  │        │      CollectionRecord   (RF-18: kg por categoría)
+  │        │
+  │      Incident
+  │      LearnVisit
+  │
+PushSubscription   (RF-17: suscripciones Web Push)
 
 WasteType ──── RouteWasteType ──── Route
 ```
@@ -284,16 +295,24 @@ npm run dev                 # http://localhost:3000
 
 ```env
 DATABASE_URL=postgresql://usuario:contraseña@host:5432/residuos_db
-JWT_SECRET=tu_secreto_jwt
+JWT_ACCESS_SECRET=tu_secreto_jwt
 JWT_REFRESH_SECRET=tu_secreto_refresh
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
 PORT=4000
 FRONTEND_URL=http://localhost:3000
+
+# Correos transaccionales (verificación, recuperación, alertas de retraso)
+BREVO_API_KEY=tu_api_key_de_brevo
+EMAIL_FROM=Sistema de Recolección <noreply@tudominio.pe>
 
 # RF-17: Web Push (generar con: npx web-push generate-vapid-keys)
 VAPID_PUBLIC_KEY=clave_publica_vapid
 VAPID_PRIVATE_KEY=clave_privada_vapid
 VAPID_SUBJECT=mailto:soporte@tudominio.pe
 ```
+
+> En producción estas variables se configuran en el panel de Dokploy de cada aplicación (sin comillas ni espacios). Si faltan las claves VAPID, el backend registra `[Push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY no configuradas` y el módulo push queda desactivado.
 
 ### Frontend — `.env.local`
 
@@ -309,6 +328,9 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 ```
 /
 ├── frontend/                   # Next.js 14 (App Router)
+│   ├── public/
+│   │   ├── sw.js               # Service worker PWA (caché offline + Web Push RF-17)
+│   │   └── offline.html        # Página de respaldo sin conexión
 │   └── src/
 │       ├── app/
 │       │   ├── (auth)/         # Login / Registro
@@ -328,10 +350,13 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 │       ├── components/
 │       │   ├── LeafletTrackingMap.tsx  # Mapa de rastreo GPS
 │       │   ├── LeafletWaypointEditor.tsx # Editor de rutas en mapa
+│       │   ├── ProximityAlertListener.tsx # RF-12/13/17: alertas + botón push
+│       │   ├── ServiceWorkerRegister.tsx  # Registro del SW (solo producción)
 │       │   └── ZoneGuard.tsx           # Guardia de zona por rol
 │       ├── context/AuthContext.tsx
 │       └── lib/
 │           ├── api.ts                  # Cliente HTTP
+│           ├── push.ts                 # RF-17: suscripción Web Push
 │           └── socket.ts               # Cliente Socket.IO
 │
 └── backend/                    # Express + Prisma
@@ -361,9 +386,9 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 | RF-09 | Gestión de rutas con editor en mapa | Monitoreo de rutas | Alta | ✓ |
 | RF-07 | Visualización de ruta planificada en mapa | Monitoreo de rutas | Alta | ✓ |
 | RF-11 | Reporte de incidencias con foto y GPS | Aplicación ciudadana | Alta | ✓ |
-| RF-12 | Seguimiento de camiones por zona | Sistema de alertas | Alta | ✓ |
-| RF-13 | Alerta de retraso en tiempo real | Sistema de alertas | Media | ✓ |
-| RF-14 | Reportes con exportación PDF y Excel | Reportes | Alta | ✓ |
+| RF-12 | Notificación de cercanía del camión | Sistema de alertas | Alta | ✓ |
+| RF-13 | Alertas de retraso o incidencias en rutas | Sistema de alertas | Media | ✓ |
+| RF-14 | Reporte de residuos recolectados por zona | Reportes | Alta | ✓ |
 | RF-15 | Reporte de cumplimiento de rutas | Reportes | Media | ✓ |
 | RF-16 | Reporte de participación ciudadana | Reportes | Media | ✓ |
 | RF-10 | Consulta de horarios de recolección | Horarios | Alta | ✓ |
@@ -409,8 +434,6 @@ Cada RF se descompone en **5 subtareas estándar**: `[1/5] Plan` → `[2/5] Dise
 | SCRUM-13 | RF-02: Autenticación JWT con roles (HU-02) | E1 | Celia Quispe | ✅ Finalizado |
 | SCRUM-14 | RF-03: Gestión de zonas geográficas GeoJSON (HU-03) | E1 | Christian Pumaccahua | ✅ Finalizado |
 | SCRUM-15 | RF-04: Asignación de usuarios a zonas (HU-04) | E1 | Medaly Lozano | ✅ Finalizado |
-| SCRUM-16 | RF-05: Registro de tipos de residuos (HU-05) | E2 | Celia Quispe | ✅ Finalizado |
-| SCRUM-17 | RF-06: Clasificación de residuos por categoría (HU-06) | E2 | Edmil Saire | ✅ Finalizado |
 | SCRUM-18 | RF-07: Visualización de ruta planificada en mapa (HU-07) | E3 | Christian Pumaccahua | ✅ Finalizado |
 | SCRUM-19 | RF-08: Rastreo GPS en tiempo real — Socket.IO (HU-08) | E3 | Edmil Saire | ✅ Finalizado |
 | SCRUM-20 | RF-09: Gestión de rutas con editor en mapa (HU-09) | E3 | Medaly Lozano | ✅ Finalizado |
@@ -418,11 +441,9 @@ Cada RF se descompone en **5 subtareas estándar**: `[1/5] Plan` → `[2/5] Dise
 | SCRUM-22 | RF-11: Reporte ciudadano de incidencias (HU-11) | E4 | Celia Quispe | ✅ Finalizado |
 | SCRUM-23 | RF-12: Notificación de cercanía del camión (HU-12) | E5 | Christian Pumaccahua | ✅ Finalizado |
 | SCRUM-24 | RF-13: Alertas de retraso o incidencias en rutas (HU-13) | E5 | Medaly Lozano | ✅ Finalizado |
-| SCRUM-25 | RF-14: Reporte de residuos recolectados por zona (HU-14) | E6 | Edmil Saire | ✅ Finalizado |
 | SCRUM-26 | RF-15: Reporte de cumplimiento de rutas (HU-15) | E6 | Medaly Lozano | ✅ Finalizado |
-| SCRUM-27 | RF-16: Reporte de participación ciudadana (HU-16) | E6 | Celia Quispe | ✅ Finalizado |
 | SCRUM-176 | RF-17: Notificaciones push PWA con app cerrada (HU-17) | E5 | Edmil Saire | ✅ Finalizado |
-| SCRUM-177 | RF-18: Registro de cantidades recolectadas al cierre de ruta (HU-18) | E6 | Edmil Saire | ✅ Finalizado |
+
 
 ### Criterios de aceptación por historia de usuario
 
@@ -852,10 +873,10 @@ Serie de historias técnicas ya completadas que sentaron la base del sistema (to
 
 | Integrante | RF asignados |
 |---|---|
-| Edmil Jampier Saire Bustamante | RF-01, RF-06, RF-08, RF-10 + historias técnicas HU-01…HU-08 |
-| Celia Quispe Quispe | RF-02, RF-05, RF-11 |
+| Edmil Jampier Saire Bustamante | RF-01, RF-06, RF-08, RF-10, RF-14, RF-17, RF-18 + historias técnicas HU-01…HU-08 |
+| Celia Quispe Quispe | RF-02, RF-05, RF-11, RF-16 |
 | Christian Pumaccahua Cusihuamán | RF-03, RF-07, RF-12 |
-| Medaly Lozano Llacctahuamán | RF-04, RF-09, RF-13 |
+| Medaly Lozano Llacctahuamán | RF-04, RF-09, RF-13, RF-15 |
 
 ---
 

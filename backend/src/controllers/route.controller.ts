@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
 import * as routeService from '../services/route.service'
-import * as collectionService from '../services/collection.service'
 import { ok, created } from '../utils/response'
 
 export async function list(req: Request, res: Response, next: NextFunction) {
@@ -77,16 +76,3 @@ export async function operators(req: Request, res: Response, next: NextFunction)
   }
 }
 
-// RF-18: el operador registra las cantidades recolectadas al cierre de su ruta
-export async function registerCollection(req: Request, res: Response, next: NextFunction) {
-  try {
-    const records = await collectionService.registerCollectionRecords(
-      req.params['executionId'] as string,
-      req.body.items,
-      { id: req.user!.id, role: req.user!.role },
-    )
-    created(res, records, 'Cantidades recolectadas registradas')
-  } catch (err) {
-    next(err)
-  }
-}

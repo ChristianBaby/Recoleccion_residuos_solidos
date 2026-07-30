@@ -151,7 +151,6 @@ describe('Pruebas de Servicio de Rutas Planificadas - CRUD y Conflictos (HU-07 /
       startTime: '08:00',
       estimatedDuration: 120,
       waypoints: [],
-      wasteTypeIds: [],
     }, 'admin-uuid');
 
     expect(result).toBeDefined();
@@ -186,7 +185,6 @@ describe('Pruebas de Servicio de Rutas Planificadas - CRUD y Conflictos (HU-07 /
       startTime: '08:30', // Se cruza con 09:00 a 10:00 ya que dura 60 min y termina a las 09:30
       estimatedDuration: 60,
       waypoints: [],
-      wasteTypeIds: [],
     }, 'admin-uuid')).rejects.toEqual({
       status: 400,
       message: 'Conflicto de horario: El operador ya está asignado a la ruta "Ruta Matutina Conflicto" en el horario 09:00 (60 min) para los mismos días.',

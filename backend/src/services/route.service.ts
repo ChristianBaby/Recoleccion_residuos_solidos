@@ -110,7 +110,7 @@ export async function createRoute(input: CreateRouteInput, adminId: string) {
     await validateRouteConflicts(input)
   }
 
-  const { waypoints, wasteTypeIds, ...routeData } = input
+  const { waypoints, ...routeData } = input
 
   const createdRoute = await prisma.$transaction(async (tx) => {
     const route = await tx.route.create({
@@ -120,12 +120,6 @@ export async function createRoute(input: CreateRouteInput, adminId: string) {
     if (waypoints?.length) {
       await tx.waypoint.createMany({
         data: waypoints.map((wp) => ({ ...wp, routeId: route.id })),
-      })
-    }
-
-    if (wasteTypeIds?.length) {
-      await tx.routeWasteType.createMany({
-        data: wasteTypeIds.map((wId) => ({ routeId: route.id, wasteTypeId: wId })),
       })
     }
 
@@ -189,7 +183,7 @@ export async function updateRoute(id: string, input: UpdateRouteInput, actorId?:
     await validateRouteConflicts(merged, id)
   }
 
-  const { waypoints, wasteTypeIds, ...fields } = input
+  const { waypoints, ...fields } = input
 
   const updatedRoute = await prisma.$transaction(async (tx) => {
     await tx.route.update({
@@ -211,15 +205,6 @@ export async function updateRoute(id: string, input: UpdateRouteInput, actorId?:
       if (waypoints.length) {
         await tx.waypoint.createMany({
           data: waypoints.map((wp) => ({ ...wp, routeId: id })),
-        })
-      }
-    }
-
-    if (wasteTypeIds !== undefined) {
-      await tx.routeWasteType.deleteMany({ where: { routeId: id } })
-      if (wasteTypeIds.length) {
-        await tx.routeWasteType.createMany({
-          data: wasteTypeIds.map((wId) => ({ routeId: id, wasteTypeId: wId })),
         })
       }
     }

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { validate } from '../middleware/validate'
 import { requireAuth, requireRole } from '../middleware/auth'
 import * as ctrl from '../controllers/route.controller'
-import { createRouteSchema, updateRouteSchema, registerCollectionSchema } from '../validators/route.validator'
+import { createRouteSchema, updateRouteSchema } from '../validators/route.validator'
 
 const router = Router()
 
@@ -20,12 +20,5 @@ router.post('/:id/duplicate', requireRole('ADMIN'), ctrl.duplicate)
 router.put('/:id', requireRole('ADMIN'), validate(updateRouteSchema), ctrl.update)
 router.patch('/:id/deactivate', requireRole('ADMIN'), ctrl.deactivate)
 
-// RF-18: El operador declara las cantidades recolectadas al cerrar su ruta
-router.post(
-  '/executions/:executionId/collection',
-  requireRole('OPERATOR', 'ADMIN'),
-  validate(registerCollectionSchema),
-  ctrl.registerCollection,
-)
-
 export default router
+

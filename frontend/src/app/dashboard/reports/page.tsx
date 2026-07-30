@@ -1030,34 +1030,9 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex flex-col sm:flex-row gap-1.5 mb-8 bg-slate-100/60 rounded p-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded text-xs
-              font-bold tracking-wider uppercase transition-all ${
-              activeTab === tab.key
-                ? 'bg-teal-800 text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-250/20'
-            }`}
-          >
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
-      {activeTab === 'waste' && (
-        <WasteTab accessToken={accessToken} from={from} to={to} zoneId={zoneId} />
-      )}
-      {activeTab === 'compliance' && (
-        <ComplianceTab accessToken={accessToken} from={from} to={to} zoneId={zoneId} />
-      )}
-      {activeTab === 'participation' && (
-        <ParticipationTab accessToken={accessToken} from={from} to={to} zoneId={zoneId} />
-      )}
+      {/* Content */}
+      <ComplianceTab accessToken={accessToken} from={from} to={to} zoneId={zoneId} />
     </div>
   )
 }
+
