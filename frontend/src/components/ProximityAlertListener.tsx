@@ -354,12 +354,12 @@ export function NotificationCenter() {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative inline-flex items-center shrink-0" ref={dropdownRef}>
       {/* Botón de Campana con Badge */}
       <button
         onClick={toggleOpen}
         title="Centro de Notificaciones y Alertas"
-        className={`relative p-2 rounded-xl border transition-all active:scale-95 flex items-center justify-center ${
+        className={`relative p-2 rounded-xl border transition-all active:scale-95 flex items-center justify-center shrink-0 ${
           isOpen
             ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm'
             : unreadCount > 0
@@ -377,9 +377,9 @@ export function NotificationCenter() {
         )}
       </button>
 
-      {/* Dropdown / Bandeja Flotante */}
+      {/* Dropdown / Bandeja Flotante Responsiva */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="fixed inset-x-3 top-16 sm:top-auto sm:inset-x-auto sm:absolute sm:right-0 sm:mt-2 w-auto sm:w-96 max-w-md sm:max-w-none mx-auto sm:mx-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Header de la Bandeja */}
           <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">

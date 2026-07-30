@@ -186,7 +186,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <NotificationCenter />
               
               <span className="hidden sm:inline-block text-[9px] font-extrabold tracking-wider px-2 py-1 bg-slate-100 text-slate-600 rounded uppercase border border-slate-200">
