@@ -229,7 +229,7 @@ export default function ProximityAlertListener() {
  * estado de lectura y panel de suscripción Web Push VAPID.
  */
 export function NotificationCenter() {
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState<StoredNotification[]>([])
   const [permission, setPermission] = useState<NotificationPermission>(() => (
@@ -251,6 +251,54 @@ export function NotificationCenter() {
     window.addEventListener('ecorutas:notifications-updated', handleUpdate)
     return () => window.removeEventListener('ecorutas:notifications-updated', handleUpdate)
   }, [])
+
+  // RF-13 / Sincronización Remota: Al montar el componente con usuario autenticado,
+  // consulta las rutas activas para reconstruir notificaciones de retraso de su zona
+  // si abre sesión desde otra PC o navegador.
+  useEffect(() => {
+    if (!accessToken || !user) return
+
+    async function syncActiveDelays() {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'}/routes?status=ACTIVE`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        if (!res.ok) return
+        const json = await res.json()
+        const routes = json.data as Array<{ id: string; name: string; zoneId?: string; status: string; zone?: { name: string } }>
+        if (!routes || !Array.isArray(routes)) return
+
+        const stored = getStoredNotifications()
+        let hasNew = false
+
+        routes.forEach((r) => {
+          // Si hay rutas activas con retrasos declarados de su zona, garantizar su entrada en la bandeja
+          const delayId = `remote-del-${r.id}`
+          const exists = stored.some((item) => item.id === delayId)
+          if (!exists) {
+            stored.unshift({
+              id: delayId,
+              type: 'delay',
+              title: '⏰ Ruta en seguimiento en tu zona',
+              body: `La ruta "${r.name}" está activa en ${r.zone?.name || 'tu zona'}. Te notificaremos cualquier retraso o aproximación del camión.`,
+              timestamp: new Date().toISOString(),
+              read: true,
+            })
+            hasNew = true
+          }
+        })
+
+        if (hasNew) {
+          saveStoredNotifications(stored)
+          setNotifications(stored)
+        }
+      } catch (err) {
+        console.warn('[PushSync] No se pudieron sincronizar retrasos remotos:', err)
+      }
+    }
+
+    syncActiveDelays()
+  }, [accessToken, user])
 
   useEffect(() => {
     function refreshPushState() {
@@ -382,7 +430,7 @@ export function NotificationCenter() {
 
       {/* Dropdown / Bandeja Flotante Responsiva */}
       {isOpen && (
-        <div className="fixed inset-x-3 top-16 sm:top-auto sm:inset-x-auto sm:absolute sm:right-0 sm:mt-2 w-auto sm:w-96 max-w-md sm:max-w-none mx-auto sm:mx-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="fixed inset-x-3 top-16 sm:top-full sm:mt-3.5 sm:inset-x-auto sm:absolute sm:right-0 sm:mt-2 w-auto sm:w-96 max-w-md sm:max-w-none mx-auto sm:mx-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Header de la Bandeja */}
           <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -425,12 +473,12 @@ export function NotificationCenter() {
           {/* Contenido / Lista de Notificaciones */}
           <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
             {notifications.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <BellOff size={20} />
+              <div className="py-6 px-4 text-center">
+                <div className="w-10 h-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <BellOff size={18} />
                 </div>
                 <p className="text-xs font-bold text-slate-700">Sin notificaciones aún</p>
-                <p className="text-[11px] text-slate-400 mt-1 max-w-[220px] mx-auto">
+                <p className="text-[11px] text-slate-400 mt-1 max-w-[240px] mx-auto leading-relaxed">
                   Aquí aparecerán las alertas de cercanía del camión recolector y los avisos de retraso en tus rutas.
                 </p>
               </div>
