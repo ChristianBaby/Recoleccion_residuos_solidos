@@ -128,7 +128,72 @@ export async function createIncident(input: CreateIncidentInput, citizenId: stri
   })
 }
 
-// ─── RF-11: Actualizar estado (solo ADMIN) ────────────────────────────────────
+import { sendPushToUsers } from './push.service'
+import { getSocketIO } from '../socket'
+
+async function notifyCitizenStatusChange(
+  citizenId: string,
+  citizenEmail: string,
+  citizenFirstName: string,
+  trackingCode: string,
+  newStatus: string,
+) {
+  const statusLabels: Record<string, string> = {
+    OPEN: 'Abierta 🔴',
+    IN_REVIEW: 'En revisión 🟡',
+    RESOLVED: 'Resuelta 🟢',
+    CLOSED: 'Cerrada ⚪',
+  }
+  const statusLabel = statusLabels[newStatus] || newStatus
+
+  const title = `Estado de Incidencia: ${statusLabel}`
+  let body = `Tu reporte #${trackingCode} ha sido actualizado a estado ${statusLabel}.`
+
+  if (newStatus === 'IN_REVIEW') {
+    body = `Tu reporte #${trackingCode} está siendo evaluado y atendido por el equipo municipal.`
+  } else if (newStatus === 'RESOLVED') {
+    body = `¡Atención completada! Tu reporte #${trackingCode} ha sido solucionado por la municipalidad.`
+  } else if (newStatus === 'CLOSED') {
+    body = `El reporte #${trackingCode} ha sido finalizado y cerrado.`
+  }
+
+  // 1. WebPush VAPID en segundo plano
+  try {
+    await sendPushToUsers([citizenId], {
+      title,
+      body,
+      url: '/dashboard/incidents',
+      tag: `incident-${trackingCode}`,
+    })
+  } catch (err) {
+    console.warn('[Push] Error notificando cambio de estado:', err)
+  }
+
+  // 2. Transmisión WebSocket en tiempo real
+  try {
+    const io = getSocketIO()
+    if (io) {
+      io.to(`user:${citizenId}`).emit('route:delay_alert', {
+        routeId: `incident-${trackingCode}`,
+        routeName: `Incidencia ${trackingCode}`,
+        zoneName: 'Atención Municipal',
+        delayMinutes: 0,
+        reason: body,
+      })
+    }
+  } catch (err) {
+    console.warn('[Socket] Error enviando evento de incidencia:', err)
+  }
+
+  // 3. Correo electrónico transaccional
+  try {
+    await sendIncidentStatusEmail(citizenEmail, citizenFirstName, trackingCode, newStatus as any)
+  } catch (err) {
+    console.error('Error enviando correo de cambio de estado:', err)
+  }
+}
+
+// ─── RF-11: Actualizar estado (solo ADMIN / OPERATOR) ──────────────────────────
 
 export async function updateIncidentStatus(
   id: string,
@@ -136,7 +201,7 @@ export async function updateIncidentStatus(
 ) {
   const incident = await prisma.incident.findUnique({
     where: { id },
-    include: { citizen: { select: { email: true, firstName: true } } },
+    include: { citizen: { select: { id: true, email: true, firstName: true } } },
   })
   if (!incident) throw { status: 404, message: 'Incidencia no encontrada' }
 
@@ -145,17 +210,14 @@ export async function updateIncidentStatus(
     data: { status: input.status },
   })
 
-  // Notificar al ciudadano por email
-  try {
-    await sendIncidentStatusEmail(
-      incident.citizen.email,
-      incident.citizen.firstName,
-      incident.trackingCode,
-      input.status,
-    )
-  } catch (err) {
-    console.error('Error enviando notificación de incidencia:', err)
-  }
+  // Notificar al ciudadano por WebPush + Socket + Email
+  await notifyCitizenStatusChange(
+    incident.citizenId,
+    incident.citizen.email,
+    incident.citizen.firstName,
+    incident.trackingCode,
+    input.status,
+  )
 
   return updated
 }
@@ -246,16 +308,13 @@ export async function updateIncident(
   })
 
   if (newStatus !== oldStatus) {
-    try {
-      await sendIncidentStatusEmail(
-        incident.citizen.email,
-        incident.citizen.firstName,
-        incident.trackingCode,
-        newStatus,
-      )
-    } catch (err) {
-      console.error('Error enviando notificación de incidencia:', err)
-    }
+    await notifyCitizenStatusChange(
+      incident.citizenId,
+      incident.citizen.email,
+      incident.citizen.firstName,
+      incident.trackingCode,
+      newStatus,
+    )
   }
 
   return updated

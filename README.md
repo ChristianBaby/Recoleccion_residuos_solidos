@@ -118,14 +118,17 @@ El administrador crea y edita rutas directamente sobre el mapa interactivo.
 
 ---
 
-### RF-11 · Reporte de incidencias con imagen y geolocalización
+### RF-11 · Reporte e inspección de incidencias por rol con notificaciones por estado
 
-- El ciudadano reporta desde el dashboard con tipo de incidencia, descripción, foto y coordenadas GPS
-- Tipos: acumulación de residuos, contenedor dañado, recolección no realizada, otro
-- Estados de gestión: `OPEN` → `IN_REVIEW` → `RESOLVED` → `CLOSED`
-- El administrador gestiona el estado de cada incidencia desde su panel
-- Código de seguimiento único generado automáticamente por registro
-- Las imágenes se cargan mediante URL (almacenamiento externo configurable)
+- El ciudadano reporta desde el dashboard con tipo de incidencia, descripción, foto comprimida en cliente (< 500 KB) y coordenadas GPS
+- Tipos: acumulación de residuos (`WASTE_ACCUMULATION`), contenedor dañado (`DAMAGED_CONTAINER`), recolección no realizada (`MISSED_COLLECTION`), otro (`OTHER`)
+- **Gestión de Estados Municipales:** `OPEN` (`Abierta 🔴`) ➔ `IN_REVIEW` (`En revisión 🟡`) ➔ `RESOLVED` (`Resuelta 🟢`) ➔ `CLOSED` (`Cerrada ⚪`)
+- **Modal de Inspección Completo (👁️):** Al presionar sobre una incidencia, el Administrador y el Operador acceden a la tarjeta completa del ciudadano (Nombre, DNI, Email, Teléfono, Zona), evidencia fotográfica HD, coordenadas geográficas y botón directo a Google Maps.
+- **Notificaciones Automáticas Multi-canal por Cambio de Estado:** Cada vez que la municipalidad o el operador modifica el estado de atención, el sistema despacha automáticamente:
+  1. 📱 **WebPush VAPID:** Notificación nativa al dispositivo móvil/PC del ciudadano incluso con la app cerrada.
+  2. ⚡ **WebSockets (Socket.IO):** Alerta en vivo con banner flotante y actualización de la campana 🔔 con badge en tiempo real.
+  3. ✉️ **Correo Transaccional (Brevo):** Email formal con el resumen del cambio de estado y código de seguimiento.
+- Código de seguimiento único (`INC-2026-XXXXX`) generado automáticamente por registro.
 
 ---
 
