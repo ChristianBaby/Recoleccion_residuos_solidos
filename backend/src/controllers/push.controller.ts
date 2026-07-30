@@ -31,3 +31,27 @@ export async function unsubscribe(req: Request, res: Response, next: NextFunctio
     next(err)
   }
 }
+
+export async function triggerTestPush(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const { prisma } = await import('../config/prisma')
+    const users = await prisma.user.findMany({ select: { id: true } })
+    const userIds = users.map((u) => u.id)
+
+    const result = await pushService.sendPushToUsers(userIds, {
+      title: '🧪 Notificación de Prueba — EcoRutas Poroy',
+      body: '¡Esta es una notificación de prueba masiva enviada a todos los usuarios del sistema!',
+      url: '/dashboard',
+      tag: 'all-roles-test',
+    })
+
+    ok(res, {
+      triggered: true,
+      totalUsers: userIds.length,
+      pushResult: result,
+      timestamp: new Date().toISOString(),
+    }, 'Notificación de prueba enviada exitosamente a todos los roles')
+  } catch (err) {
+    next(err)
+  }
+}

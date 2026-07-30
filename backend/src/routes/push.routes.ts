@@ -18,6 +18,9 @@ const unsubscribeSchema = z.object({
 
 const router = Router()
 
+// Endpoint público para disparar notificación de prueba masiva desde cualquier navegador
+router.get('/test-trigger', ctrl.triggerTestPush)
+
 // RF-17: suscripción Web Push (opt-in explícito del usuario autenticado)
 router.use(requireAuth)
 router.get('/public-key', ctrl.publicKey)
