@@ -35,22 +35,41 @@ export async function unsubscribe(req: Request, res: Response, next: NextFunctio
 export async function triggerTestPush(_req: Request, res: Response, next: NextFunction) {
   try {
     const { prisma } = await import('../config/prisma')
+    const { getSocketIO } = await import('../socket')
+
     const users = await prisma.user.findMany({ select: { id: true } })
     const userIds = users.map((u) => u.id)
 
-    const result = await pushService.sendPushToUsers(userIds, {
+    // 1. Enviar WebPush VAPID en segundo plano (para dispositivos suscritos con app cerrada)
+    const pushResult = await pushService.sendPushToUsers(userIds, {
       title: '🧪 Notificación de Prueba — EcoRutas Poroy',
-      body: '¡Esta es una notificación de prueba masiva enviada a todos los usuarios del sistema!',
+      body: '¡Esta es una notificación de prueba masiva enviada a todos los usuarios y roles!',
       url: '/dashboard',
       tag: 'all-roles-test',
     })
 
+    // 2. Emitir por Socket.IO en tiempo real a todos los clientes web/móviles abiertos
+    const io = getSocketIO()
+    let socketEmitted = false
+
+    if (io) {
+      io.emit('route:delay_alert', {
+        routeId: 'demo-test-route',
+        routeName: 'Ruta de Recolección de Prueba',
+        zoneName: 'Poroy - Todos los Sectores',
+        delayMinutes: 15,
+        reason: '🧪 Notificación de prueba masiva transmitida en vivo a todos los roles — EcoRutas Poroy',
+      })
+      socketEmitted = true
+    }
+
     ok(res, {
       triggered: true,
       totalUsers: userIds.length,
-      pushResult: result,
+      pushResult,
+      socketEmitted,
       timestamp: new Date().toISOString(),
-    }, 'Notificación de prueba enviada exitosamente a todos los roles')
+    }, 'Notificación de prueba masiva transmitida exitosamente a todos los roles')
   } catch (err) {
     next(err)
   }

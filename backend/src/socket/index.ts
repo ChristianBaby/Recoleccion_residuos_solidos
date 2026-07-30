@@ -4,6 +4,12 @@ import { verifyAccessToken } from '../utils/jwt'
 import { prisma } from '../config/prisma'
 import { setupTrackingHandlers } from './tracking'
 
+let ioInstance: Server | null = null
+
+export function getSocketIO(): Server | null {
+  return ioInstance
+}
+
 export function setupSocketServer(httpServer: HttpServer, frontendUrl: string): Server {
   const allowedOrigins = frontendUrl
     .split(',')
@@ -14,6 +20,7 @@ export function setupSocketServer(httpServer: HttpServer, frontendUrl: string): 
     pingInterval: 10000, // Envía un ping cada 10 segundos para mantener la conexión activa en redes móviles
     pingTimeout: 5000,   // Espera 5 segundos antes de declarar la conexión como muerta
   })
+  ioInstance = io
 
   // JWT auth middleware para cada conexión WebSocket
   io.use(async (socket, next) => {
