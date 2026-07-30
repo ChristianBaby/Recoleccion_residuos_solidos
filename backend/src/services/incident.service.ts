@@ -10,25 +10,34 @@ export async function listIncidents(
   filters?: { status?: string; zoneId?: string },
 ) {
   const isAdmin = role === 'ADMIN'
-  const isOperator = role === 'OPERATOR'
 
-  const cleanStatus = filters?.status?.trim()
-  const cleanZoneId = filters?.zoneId?.trim()
+  const citizenSelect = {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      dni: true,
+      phone: true,
+      role: true,
+      zone: { select: { id: true, name: true, district: true } },
+    },
+  }
 
-  if (isAdmin || isOperator) {
+  if (isAdmin) {
     return prisma.incident.findMany({
       where: {
-        ...(cleanStatus && cleanStatus !== 'ALL' && { status: cleanStatus as any }),
-        ...(cleanZoneId && { citizen: { zoneId: cleanZoneId } }),
+        ...(filters?.status && { status: filters.status as any }),
+        ...(filters?.zoneId && { citizen: { zoneId: filters.zoneId } }),
       },
       include: {
-        citizen: { select: { id: true, firstName: true, lastName: true, email: true } },
+        citizen: citizenSelect,
       },
       orderBy: { createdAt: 'desc' },
     })
   }
 
-  // Ciudadano: ver incidencias de su zona + las de creadores con rol ADMIN u OPERATOR
+  // Ciudadano/Operador: ver incidencias de su zona + las de creadores con rol ADMIN u OPERATOR
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { zoneId: true } })
   const zoneQuery = me?.zoneId ? { citizen: { zoneId: me.zoneId } } : null
 
@@ -38,10 +47,10 @@ export async function listIncidents(
         ...(zoneQuery ? [zoneQuery] : []),
         { citizen: { role: { in: ['ADMIN', 'OPERATOR'] } } }
       ],
-      ...(cleanStatus && cleanStatus !== 'ALL' && { status: cleanStatus as any }),
+      ...(filters?.status && { status: filters.status as any }),
     },
     include: {
-      citizen: { select: { id: true, firstName: true, lastName: true, email: true } },
+      citizen: citizenSelect,
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -53,7 +62,18 @@ export async function getIncident(id: string, userId: string, role: string) {
   const incident = await prisma.incident.findUnique({
     where: { id },
     include: {
-      citizen: { select: { id: true, firstName: true, lastName: true } },
+      citizen: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          dni: true,
+          phone: true,
+          role: true,
+          zone: { select: { id: true, name: true, district: true } },
+        },
+      },
     },
   })
 

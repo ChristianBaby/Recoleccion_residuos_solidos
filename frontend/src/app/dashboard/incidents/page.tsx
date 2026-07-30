@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import ZoneGuard from '@/components/ZoneGuard'
 import type { Zone } from '@/types'
 import { saveOfflineIncident, getOfflineIncidents, deleteOfflineIncident } from '@/lib/offlineDb'
-import { Pencil, Trash2, MapPin, X, MousePointerClick, CheckCircle2 } from 'lucide-react'
+import { Pencil, Trash2, MapPin, X, MousePointerClick, CheckCircle2, Eye, User as UserIcon, Phone, Mail, Calendar, ExternalLink, ShieldCheck, FileText } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 
 const INCIDENT_TYPE_LABELS: Record<string, string> = {
@@ -19,10 +19,10 @@ const INCIDENT_TYPE_LABELS: Record<string, string> = {
 }
 
 const STATUS_CONFIG: Record<IncidentStatus, { label: string; cls: string }> = {
-  OPEN:      { label: 'Abierta',       cls: 'bg-red-50 text-red-700' },
-  IN_REVIEW: { label: 'En revisión',   cls: 'bg-amber-50 text-amber-700' },
-  RESOLVED:  { label: 'Resuelta',      cls: 'bg-emerald-50 text-emerald-700' },
-  CLOSED:    { label: 'Cerrada',       cls: 'bg-slate-100 text-slate-600' },
+  OPEN:      { label: 'Abierta',       cls: 'bg-red-50 text-red-700 border-red-200' },
+  IN_REVIEW: { label: 'En revisión',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  RESOLVED:  { label: 'Resuelta',      cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  CLOSED:    { label: 'Cerrada',       cls: 'bg-slate-100 text-slate-600 border-slate-200' },
 }
 
 const STATUS_ORDER: IncidentStatus[] = ['OPEN', 'IN_REVIEW', 'RESOLVED', 'CLOSED']
@@ -51,6 +51,7 @@ function IncidentsPageContent() {
 
   const searchParams = useSearchParams()
   const [incidents, setIncidents] = useState<Incident[]>([])
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
 
   useEffect(() => {
     if (searchParams.get('create') === 'true' || searchParams.get('openModal') === 'true') {
@@ -83,10 +84,8 @@ function IncidentsPageContent() {
     try {
       const params = new URLSearchParams()
       if (filterStatus !== 'ALL') params.set('status', filterStatus)
-      if (isAdmin && filterZoneId && filterZoneId.trim() !== '') {
-        params.set('zoneId', filterZoneId.trim())
-      }
-      const res = await api.get<ApiResponse<Incident[]>>(`/incidents?${params.toString()}`, accessToken)
+      if (isAdmin && filterZoneId) params.set('zoneId', filterZoneId)
+      const res = await api.get<ApiResponse<Incident[]>>(`/incidents?${params}`, accessToken)
       setIncidents(res.data ?? [])
     } catch {
       toast.error('Error al cargar las incidencias')
@@ -684,6 +683,14 @@ function IncidentsPageContent() {
                         {/* Actions */}
                         <td className="px-5 py-4 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2.5">
+                            <button
+                              onClick={() => setSelectedIncident(inc)}
+                              className="p-1.5 text-teal-600 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 rounded transition-colors"
+                              title="Ver detalle completo de la incidencia"
+                            >
+                              <Eye size={14} />
+                            </button>
+
                             {inc.lat && inc.lng ? (
                               <a
                                 href={`https://www.google.com/maps/search/?api=1&query=${inc.lat},${inc.lng}`}
@@ -725,6 +732,216 @@ function IncidentsPageContent() {
           </div>
         )}
       </div>
+
+      {/* Modal: Ver Detalle Completo de la Incidencia (Inspección para Admin / Operador / Ciudadano) */}
+      {selectedIncident && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+            {/* Header del Modal de Detalle */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-teal-500/20 text-teal-400 rounded-xl">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-sm tracking-wider text-teal-300">
+                      {selectedIncident.trackingCode}
+                    </span>
+                    <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${STATUS_CONFIG[selectedIncident.status].cls}`}>
+                      {STATUS_CONFIG[selectedIncident.status].label}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Registrada el {new Date(selectedIncident.createdAt).toLocaleString('es-PE', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedIncident(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Contenido con Scroll */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Tarjeta de Ciudadano / Denunciante (Admin / Operador) */}
+              {selectedIncident.citizen && (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                    <UserIcon size={14} className="text-teal-600" />
+                    <span>Datos del Denunciante / Ciudadano</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[11px] block">Nombre completo</span>
+                      <span className="font-bold text-slate-800">
+                        {selectedIncident.citizen.firstName} {selectedIncident.citizen.lastName}
+                      </span>
+                    </div>
+                    {selectedIncident.citizen.dni && (
+                      <div>
+                        <span className="text-slate-400 text-[11px] block">DNI / Documento</span>
+                        <span className="font-mono font-semibold text-slate-800">{selectedIncident.citizen.dni}</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-slate-400 text-[11px] block flex items-center gap-1">
+                        <Mail size={11} /> Email de contacto
+                      </span>
+                      <a href={`mailto:${selectedIncident.citizen.email}`} className="text-teal-700 hover:underline font-medium">
+                        {selectedIncident.citizen.email}
+                      </a>
+                    </div>
+                    {selectedIncident.citizen.phone && (
+                      <div>
+                        <span className="text-slate-400 text-[11px] block flex items-center gap-1">
+                          <Phone size={11} /> Teléfono
+                        </span>
+                        <a href={`tel:${selectedIncident.citizen.phone}`} className="text-slate-800 hover:underline font-semibold">
+                          {selectedIncident.citizen.phone}
+                        </a>
+                      </div>
+                    )}
+                    {selectedIncident.citizen.zone && (
+                      <div className="col-span-1 sm:col-span-2">
+                        <span className="text-slate-400 text-[11px] block">Zona registrada</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedIncident.citizen.zone.name} ({selectedIncident.citizen.zone.district})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Detalle del Problema Reportado */}
+              <div className="space-y-3">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">
+                    Tipo de Problema
+                  </span>
+                  <span className="inline-block bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold px-3 py-1 rounded-lg">
+                    {INCIDENT_TYPE_LABELS[selectedIncident.type] ?? selectedIncident.type}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">
+                    Descripción del Reporte
+                  </span>
+                  <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200/60 p-3.5 rounded-xl leading-relaxed whitespace-pre-wrap font-sans">
+                    {selectedIncident.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Fotografía Adjunta */}
+              {selectedIncident.imageUrl && (
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-2">
+                    Evidencia Fotográfica
+                  </span>
+                  <div className="relative group overflow-hidden rounded-2xl border border-slate-200 max-h-72 bg-slate-950 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedIncident.imageUrl}
+                      alt="Evidencia fotográfica de la incidencia"
+                      className="w-full h-auto max-h-72 object-contain"
+                    />
+                    <a
+                      href={selectedIncident.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs"
+                    >
+                      <ExternalLink size={16} />
+                      <span>Abrir imagen en alta resolución</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Ubicación GPS y Mapa */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+                  <MapPin size={14} className="text-teal-600" />
+                  <span>Ubicación de la Incidencia</span>
+                </h4>
+                {selectedIncident.address && (
+                  <p className="text-xs font-semibold text-slate-800 mb-2">
+                    {selectedIncident.address}
+                  </p>
+                )}
+                {selectedIncident.lat && selectedIncident.lng ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-200/60">
+                    <div className="text-xs font-mono text-slate-500">
+                      Coordenadas GPS: <span className="font-bold text-slate-800">{selectedIncident.lat.toFixed(6)}, {selectedIncident.lng.toFixed(6)}</span>
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${selectedIncident.lat},${selectedIncident.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0"
+                    >
+                      <MapPin size={13} />
+                      <span>Abrir en Google Maps</span>
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No se proporcionaron coordenadas GPS exactas.</p>
+                )}
+              </div>
+
+              {/* Cambio de Estado Rápido para Admin / Operador */}
+              {(isAdmin || user?.role === 'OPERATOR') && (
+                <div className="bg-teal-50/70 border border-teal-200 rounded-2xl p-4">
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-teal-800 mb-3 flex items-center gap-1.5">
+                    <ShieldCheck size={14} className="text-teal-700" />
+                    <span>Gestión de Estado (Atención Municipal)</span>
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUS_ORDER.map((s) => {
+                      const isActive = selectedIncident.status === s
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => {
+                            handleStatusChange(selectedIncident, s)
+                            setSelectedIncident({ ...selectedIncident, status: s })
+                          }}
+                          disabled={updatingId === selectedIncident.id}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            isActive
+                              ? 'bg-slate-900 text-white shadow-md'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {isActive && <CheckCircle2 size={13} className="text-teal-400" />}
+                          <span>{STATUS_CONFIG[s].label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer con Cierre */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+              <span className="text-slate-400 font-mono text-[11px]">ID: {selectedIncident.id}</span>
+              <button
+                onClick={() => setSelectedIncident(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition-all shadow-sm"
+              >
+                Cerrar Detalle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Crear/Editar incidencia */}
       {showModal && (

@@ -143,7 +143,16 @@ export interface Incident {
   address: string | null
   trackingCode: string
   citizenId: string
-  citizen?: { id: string; firstName: string; lastName: string; email: string }
+  citizen?: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    dni?: string | null
+    phone?: string | null
+    role?: string
+    zone?: { id: string; name: string; district: string } | null
+  }
   createdAt: string
   updatedAt: string
 }
