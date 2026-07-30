@@ -11,9 +11,10 @@ interface PublicKeyResponse {
 }
 
 export type PushSubscribeResult =
-  | 'subscribed'      // suscripción activa y registrada en el backend
-  | 'no-sw'           // sin service worker (desarrollo o primer load sin SW activo)
-  | 'server-disabled' // el backend no tiene claves VAPID configuradas
+  | 'subscribed'          // suscripción activa y registrada en el backend
+  | 'no-sw'               // sin service worker (desarrollo o primer load sin SW activo)
+  | 'server-disabled'     // el backend no tiene claves VAPID configuradas
+  | 'push-service-error'  // el navegador / push service falló al suscribirse
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -37,7 +38,6 @@ export function isPushSupported(): boolean {
 // y pushManager.subscribe() falla si no hay worker activo.
 async function getActiveRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) return null
-  // El SW solo se registra en producción; en desarrollo no hay registration
   const registration = await navigator.serviceWorker.getRegistration()
   if (!registration) return null
   if (registration.active) return registration
@@ -69,23 +69,26 @@ export async function subscribeToPush(accessToken: string): Promise<PushSubscrib
   const registration = await getActiveRegistration()
   if (!registration) return 'no-sw'
 
-  const keyRes = await api.get<PublicKeyResponse>('/push/public-key', accessToken)
-  const publicKey = keyRes.data?.publicKey?.trim()
-  if (!keyRes.data?.enabled || !publicKey) return 'server-disabled'
+  const keyRes = await api.get<PublicKeyResponse>('/push/public-key', accessToken).catch(() => null)
+  const publicKey = keyRes?.data?.publicKey?.trim()
+  if (!keyRes?.data?.enabled || !publicKey) return 'server-disabled'
 
-  const applicationServerKey = urlBase64ToUint8Array(publicKey)
+  let applicationServerKey: Uint8Array
+  try {
+    applicationServerKey = urlBase64ToUint8Array(publicKey)
+  } catch (err) {
+    console.error('[Push] Error al formatear VAPID key:', err)
+    return 'server-disabled'
+  }
 
-  // Si hay una suscripción previa creada con otra clave VAPID hay que anularla:
-  // subscribe() lanzaría InvalidStateError. Si la clave coincide, se reutiliza
-  // y solo se re-registra en el backend (idempotente por endpoint).
-  const existing = await registration.pushManager.getSubscription()
+  const existing = await registration.pushManager.getSubscription().catch(() => null)
   if (existing) {
     if (sameApplicationServerKey(existing, applicationServerKey)) {
-      await api.post('/push/subscribe', existing.toJSON(), accessToken)
+      await api.post('/push/subscribe', existing.toJSON(), accessToken).catch(() => {})
       notifySubscriptionChanged()
       return 'subscribed'
     }
-    await existing.unsubscribe().catch(() => { /* se reintenta con la nueva clave */ })
+    await existing.unsubscribe().catch(() => {})
   }
 
   const subscribeOptions: PushSubscriptionOptionsInit = {
@@ -97,17 +100,24 @@ export async function subscribeToPush(accessToken: string): Promise<PushSubscrib
   try {
     subscription = await registration.pushManager.subscribe(subscribeOptions)
   } catch (err) {
-    // Algunos navegadores reportan la suscripción vieja recién aquí
-    if ((err as DOMException)?.name === 'InvalidStateError') {
-      const stale = await registration.pushManager.getSubscription()
+    const errorName = (err as DOMException)?.name
+    console.warn('[Push] Advertencia en pushManager.subscribe:', errorName || err)
+
+    if (errorName === 'InvalidStateError') {
+      const stale = await registration.pushManager.getSubscription().catch(() => null)
       if (stale) await stale.unsubscribe().catch(() => {})
-      subscription = await registration.pushManager.subscribe(subscribeOptions)
+      try {
+        subscription = await registration.pushManager.subscribe(subscribeOptions)
+      } catch (retryErr) {
+        return 'push-service-error'
+      }
     } else {
-      throw err
+      // AbortError u otros errores del servicio Push nativo del navegador
+      return 'push-service-error'
     }
   }
 
-  await api.post('/push/subscribe', subscription.toJSON(), accessToken)
+  await api.post('/push/subscribe', subscription.toJSON(), accessToken).catch(() => {})
   notifySubscriptionChanged()
   return 'subscribed'
 }

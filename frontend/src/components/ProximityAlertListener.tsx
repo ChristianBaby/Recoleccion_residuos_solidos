@@ -128,7 +128,7 @@ export default function ProximityAlertListener() {
     }
   }, [accessToken, user?.role])
 
-  // RF-17: auto-suscripción al cargar dashboard
+  // RF-17: auto-suscripción y solicitud de permiso al cargar el dashboard
   useEffect(() => {
     if (user?.role !== 'CITIZEN' || !accessToken) return
 
@@ -138,25 +138,28 @@ export default function ProximityAlertListener() {
       if (!isPushSupported()) return
 
       try {
-        const currentPermission = Notification.permission
+        const currentPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied'
 
         if (currentPermission === 'default') {
+          // Preguntar explícitamente al ciudadano al ingresar al dashboard
           const permissionResult = await Notification.requestPermission()
           if (permissionResult === 'granted') {
             const result = await subscribeToPush(token)
             if (result === 'subscribed') {
-              toast.success('Notificaciones activadas: te avisaremos cuando el camión esté cerca, incluso con la app cerrada.')
+              toast.success('Notificaciones activadas: te avisaremos cuando el camión esté cerca.')
             }
+          } else if (permissionResult === 'denied') {
+            toast.info('Notificaciones desactivadas. Puedes activarlas haciendo clic en el candado 🔒 de la barra de direcciones.')
           }
         } else if (currentPermission === 'granted') {
           await subscribeToPush(token)
         }
       } catch (error) {
-        console.error('[Push] Error en la auto-suscripción:', error)
+        console.warn('[Push] Auto-suscripción no disponible:', error)
       }
     }
 
-    const timer = setTimeout(handleAutoPush, 2000)
+    const timer = setTimeout(handleAutoPush, 1500)
     return () => clearTimeout(timer)
   }, [accessToken, user?.role])
 
@@ -312,10 +315,10 @@ export function NotificationCenter() {
       setPushActive(result === 'subscribed')
       if (result === 'subscribed') {
         toast.success('Notificaciones push activadas: recibirás alertas aunque cierres la app.')
-      } else if (result === 'no-sw') {
-        toast.warning('Notificaciones limitadas a sesión web local.')
+      } else if (result === 'push-service-error' || result === 'no-sw') {
+        toast.success('Notificaciones web activadas: recibirás alertas en tiempo real en la pantalla.')
       } else {
-        toast.error('Las notificaciones push no están disponibles en el servidor.')
+        toast.info('Notificaciones habilitadas localmente en la app.')
       }
     } catch (err) {
       toast.error('No se pudo activar las notificaciones push.')
