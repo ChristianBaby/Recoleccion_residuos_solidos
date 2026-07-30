@@ -698,59 +698,43 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 <details>
 <summary><strong>RF-12 · Notificación de cercanía del camión (SCRUM-23)</strong></summary>
 
-> *Como ciudadano de Poroy, quiero recibir una notificación en tiempo real cuando el camión esté a menos de 500 metros de mi domicilio, para sacar mis residuos a tiempo.*
+> *Como ciudadano de Poroy, quiero recibir una notificación en tiempo real cuando el camión esté a menos de 500 metros de mi domicilio y consultarla en mi centro de notificaciones, para sacar mis residuos a tiempo.*
 
 **Funcionales:**
 
 1. Monitorear la posición GPS en tiempo real del vehículo asignado a la zona.
 2. Disparar alerta cuando la distancia al domicilio sea inferior a 500 metros.
 3. Transmitir la notificación por WebSockets (Socket.IO) al canal del ciudadano.
-4. Debounce: máximo una notificación por evento del camión cada 5 minutos.
+4. Registrar la alerta entrante en la bandeja del **Centro de Notificaciones (🔔)** con marca de tiempo e ícono distintivo de camión.
+5. Incrementar el badge rojo de notificaciones no leídas sobre la campana.
+6. Debounce: máximo una notificación por evento del camión cada 5 minutos.
 
 **Éticos / legales:**
 
 - Consentimiento del ciudadano para notificaciones en navegador/dispositivo.
 - Coordenadas de vehículos anónimas, asociadas solo al código del vehículo.
 
-**DoD:** el servicio WebSocket corre estable tras proxies y las alertas se despachan de forma única (debounce verificado).
+**DoD:** el servicio WebSocket corre estable tras proxies, las alertas alimentan el Centro de Notificaciones con su badge de no leídas y se despachan de forma única (debounce verificado).
 
 </details>
 
 <details>
 <summary><strong>RF-13 · Alertas de retraso o incidencias en rutas (SCRUM-24)</strong></summary>
 
-> *Como ciudadano de Poroy, quiero recibir alertas inmediatas sobre retrasos o problemas en la ruta de mi zona, para no sacar la basura innecesariamente.*
+> *Como ciudadano de Poroy, quiero recibir alertas inmediatas sobre retrasos o problemas en la ruta de mi zona en la bandeja de notificaciones, para no sacar la basura innecesariamente.*
 
 **Funcionales:**
 
 1. El operario puede declarar retraso o incidencia (desperfecto mecánico, congestión) con minutos estimados y motivo.
 2. Persistir el retraso en el historial de la ejecución y notificar de inmediato a los ciudadanos de la zona.
-3. Enviar correo formal de notificación y banner Toast en tiempo real por WebSockets.
+3. Enviar correo formal de notificación, banner Toast flotante y agregar la alerta al **Centro de Notificaciones (🔔)**.
+4. Permitir al usuario marcar alertas como leídas o limpiar el historial de la bandeja.
 
 **Éticos / legales:**
 
 - Transparencia: información clara al ciudadano sobre las demoras del servicio.
 
-**DoD:** compilación limpia de frontend y backend, y verificación de recepción del correo y el banner de retraso.
-
-</details>
-
-<details>
-<summary><strong>RF-14 · Reporte de residuos recolectados por zona (SCRUM-25)</strong></summary>
-
-> *Como administrador municipal, quiero visualizar reportes estadísticos de tipos y cantidades de residuos recolectados por zona, para optimizar rutas y evaluar metas ambientales.*
-
-**Funcionales:**
-
-1. Consultar reportes consolidados por zona en un período de tiempo.
-2. Desglosar cantidades acumuladas: orgánicos, inorgánicos, peligrosos y no aprovechables.
-3. Representaciones visuales (gráficos de barras y pastel) del volumen por zona.
-
-**Éticos / legales:**
-
-- Sostenibilidad: apoyo a decisiones ecológicas informadas.
-
-**DoD:** gráficos renderizan sin errores y las cantidades coinciden al 100 % con los datos agregados en base de datos.
+**DoD:** compilación limpia de frontend y backend, recepción del correo y actualización en tiempo real de la bandeja desplegable de notificaciones.
 
 </details>
 
@@ -774,35 +758,16 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 </details>
 
 <details>
-<summary><strong>RF-16 · Reporte de participación ciudadana (SCRUM-27)</strong></summary>
-
-> *Como administrador municipal, quiero ver estadísticas de participación ciudadana (incidencias, visitas educativas, uso de alertas), para identificar zonas con baja adopción y planificar campañas.*
-
-**Funcionales:**
-
-1. Acumular estadísticas agregadas y anónimas: ciudadanos activos, incidencias enviadas, visitas educativas por zona.
-2. Mapa de calor o tabla comparativa por zonas.
-3. Recomendaciones automáticas de concientización y talleres para zonas con baja participación (calculadas comparando el índice individual `ciudadanos + incidencias + visitas` contra el promedio general de participación de todas las zonas).
-
-**Éticos / legales:**
-
-- Anonimización (Ley N.º 29733): sin DNI, nombres ni direcciones; datos puramente agregados por zona.
-
-**DoD:** datos consolidados correctos en base de datos y verificación de no exposición de identidad en los payloads REST.
-
-</details>
-
-<details>
 <summary><strong>RF-17 · Notificaciones push PWA con app cerrada (SCRUM-176)</strong></summary>
 
-> *Como ciudadano de Poroy, quiero recibir notificaciones de cercanía del camión y de retrasos en mi zona aunque tenga la aplicación cerrada, para sacar mis residuos a tiempo sin depender de estar mirando la pantalla.*
+> *Como ciudadano de Poroy, quiero recibir notificaciones de cercanía del camión y de retrasos en mi zona aunque tenga la aplicación cerrada y gestionar el permiso desde la bandeja del sistema, para sacar mis residuos a tiempo sin depender de estar mirando la pantalla.*
 
-**Contexto técnico:** RF-12 y RF-13 hoy notifican solo con la app abierta (Socket.IO + API `Notification` del navegador). El service worker (`sw.js`) ya tiene los listeners `push` y `notificationclick` preparados; falta el circuito servidor: claves VAPID, persistencia de suscripciones y envío Web Push desde los eventos existentes.
+**Contexto técnico:** RF-12 y RF-13 notifican tanto con la app abierta (Socket.IO + Centro de Notificaciones 🔔) como cerrada (Service Worker Web Push). Las claves VAPID y la persistencia de suscripciones gestionan el envío Web Push desde los eventos existentes.
 
 **Funcionales:**
 
 1. Suscripción Web Push desde el navegador usando claves VAPID; persistir la suscripción (modelo `PushSubscription`) asociada al usuario y su zona.
-2. Activación opt-in desde el panel del ciudadano con opción de desuscribirse en cualquier momento; estado del permiso visible.
+2. Estado del permiso visible y gestionable desde el pie del **Centro de Notificaciones (🔔)** con opciones para activar/desactivar el push en segundo plano.
 3. Enviar push a los ciudadanos suscritos de la zona en los eventos de cercanía del camión (< 500 m, RF-12) y de retraso reportado (RF-13), con la app cerrada.
 4. Reutilizar el debounce de RF-12 (máximo una notificación por camión cada 5 minutos) y depurar suscripciones inválidas (respuesta 404/410 del push service).
 5. Al tocar la notificación, abrir la vista de rastreo de la zona correspondiente.
@@ -812,31 +777,7 @@ Criterios extraídos de las descripciones de las issues en Jira. Cada historia i
 - Consentimiento explícito del ciudadano para notificaciones (Ley N.º 29733); opt-in nunca activado por defecto.
 - Payload del push sin datos personales: solo código de vehículo, zona y mensaje del evento.
 
-**DoD:** pruebas unitarias del servicio de push (suscripción, debounce, depuración de suscripciones muertas) en verde, compilación limpia, y verificación E2E de recepción con la app cerrada en un dispositivo móvil.
-
-</details>
-
-<details>
-<summary><strong>RF-18 · Registro de cantidades recolectadas al cierre de ruta (SCRUM-177)</strong></summary>
-
-> *Como operador, quiero registrar las cantidades aproximadas recolectadas por categoría al finalizar mi ruta, para que los reportes municipales de residuos reflejen datos reales y no estimaciones.*
-
-**Contexto técnico:** el reporte RF-14 ("residuos recolectados por zona") hoy no agrega cantidades reales — cuenta ejecuciones × tipos de residuo asignados a la ruta (`report.service.ts`). Ningún punto del sistema registra kilogramos.
-
-**Funcionales:**
-
-1. Al pulsar "Finalizar ruta", mostrar al operador un formulario breve para registrar los kilogramos aproximados recolectados por categoría (orgánico, reciclable, no reciclable, peligroso — NTP 900.058).
-2. Persistir el registro vinculado a la ejecución de ruta (`RouteExecution`), con categoría, cantidad en kg y marca de tiempo.
-3. Validaciones: cantidades numéricas ≥ 0; permitir omitir categorías que no apliquen a la ruta; el registro no bloquea el cierre de la ruta si el operador lo omite (registro con valores en cero y advertencia).
-4. El reporte RF-14 agrega sobre los kilogramos reales registrados; las ejecuciones históricas sin registro se muestran diferenciadas ("sin datos de pesaje") manteniendo compatibilidad.
-5. Las exportaciones PDF/Excel existentes reflejan las nuevas cantidades sin cambios de formato mayores.
-
-**Éticos / legales:**
-
-- Veracidad de la información pública: los reportes municipales se basan en datos declarados por el operador responsable, con trazabilidad de quién registró cada cantidad.
-- Sostenibilidad: datos reales para evaluar metas ambientales y optimizar rutas.
-
-**DoD:** pruebas unitarias del servicio de registro y de la nueva agregación de RF-14 en verde, compilación limpia, y verificación visual de que los gráficos y exportaciones muestran los kg registrados.
+**DoD:** pruebas unitarias del servicio de push (suscripción, debounce, depuración de suscripciones muertas) en verde, compilación limpia, e integración funcional del control push dentro de la bandeja del Centro de Notificaciones.
 
 </details>
 

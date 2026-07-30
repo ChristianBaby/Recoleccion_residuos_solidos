@@ -5,17 +5,17 @@ import { useAuth } from '@/context/AuthContext'
 import { getSocket } from '@/lib/socket'
 import { subscribeToPush, unsubscribeFromPush, getCurrentPushSubscription, isPushSupported, showLocalNotification } from '@/lib/push'
 import { ApiError } from '@/lib/api'
-import { Bell, BellOff, Truck, X, Clock } from 'lucide-react'
+import { Bell, BellOff, Truck, X, Clock, CheckCheck, Trash2, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface ProximityAlert {
+export interface ProximityAlert {
   vehicleCode: string
   distance: number
   zoneId: string
   timestamp: string
 }
 
-interface DelayAlert {
+export interface DelayAlert {
   routeName: string
   delayMinutes: number
   reason: string
@@ -24,19 +24,54 @@ interface DelayAlert {
   timestamp: string
 }
 
-type AlertBanner =
-  | { type: 'proximity'; data: ProximityAlert }
-  | { type: 'delay'; data: DelayAlert }
+export interface StoredNotification {
+  id: string
+  type: 'proximity' | 'delay'
+  title: string
+  body: string
+  timestamp: string
+  read: boolean
+  data?: ProximityAlert | DelayAlert
+}
+
+const STORAGE_KEY = 'ecorutas_notifications_history'
+
+function getStoredNotifications(): StoredNotification[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveStoredNotifications(items: StoredNotification[]) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, 50))) // mantener ultimas 50
+    window.dispatchEvent(new Event('ecorutas:notifications-updated'))
+  } catch {}
+}
 
 export default function ProximityAlertListener() {
   const { user, accessToken } = useAuth()
   const [banner, setBanner] = useState<AlertBanner | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  type AlertBanner =
+    | { type: 'proximity'; data: ProximityAlert }
+    | { type: 'delay'; data: DelayAlert }
+
   function showBanner(next: AlertBanner) {
     setBanner(next)
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
     dismissTimer.current = setTimeout(() => setBanner(null), 30_000)
+  }
+
+  function appendNotification(item: StoredNotification) {
+    const current = getStoredNotifications()
+    saveStoredNotifications([item, ...current])
   }
 
   useEffect(() => {
@@ -46,19 +81,41 @@ export default function ProximityAlertListener() {
 
     function onProximityAlert(data: ProximityAlert) {
       showBanner({ type: 'proximity', data })
-      showLocalNotification('🚛 El camión está cerca', {
-        body: `El recolector está a ${data.distance} m de tu domicilio. ¡Prepara tus residuos!`,
+      const title = '🚛 El camión está cerca'
+      const body = `El recolector está a ${data.distance} m de tu domicilio. ¡Prepara tus residuos!`
+      showLocalNotification(title, {
+        body,
         icon: '/icons/icon-192.png',
         tag: 'proximity-alert',
+      })
+      appendNotification({
+        id: `prox-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'proximity',
+        title,
+        body,
+        timestamp: data.timestamp || new Date().toISOString(),
+        read: false,
+        data,
       })
     }
 
     function onDelayAlert(data: DelayAlert) {
       showBanner({ type: 'delay', data })
-      showLocalNotification('⏰ Retraso en la ruta de recolección', {
-        body: `La ruta "${data.routeName}" lleva ${data.delayMinutes} min de retraso.${data.reason ? ` Motivo: ${data.reason}` : ''}`,
+      const title = '⏰ Retraso en la ruta de recolección'
+      const body = `La ruta "${data.routeName}" lleva ${data.delayMinutes} min de retraso.${data.reason ? ` Motivo: ${data.reason}` : ''}`
+      showLocalNotification(title, {
+        body,
         icon: '/icons/icon-192.png',
         tag: 'delay-alert',
+      })
+      appendNotification({
+        id: `del-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'delay',
+        title,
+        body,
+        timestamp: data.timestamp || new Date().toISOString(),
+        read: false,
+        data,
       })
     }
 
@@ -71,8 +128,7 @@ export default function ProximityAlertListener() {
     }
   }, [accessToken, user?.role])
 
-  // RF-17: el sistema solicita el permiso directamente al ciudadano al entrar
-  // al dashboard y lo suscribe; no hace falta que pulse ningún botón.
+  // RF-17: auto-suscripción al cargar dashboard
   useEffect(() => {
     if (user?.role !== 'CITIZEN' || !accessToken) return
 
@@ -85,7 +141,6 @@ export default function ProximityAlertListener() {
         const currentPermission = Notification.permission
 
         if (currentPermission === 'default') {
-          // Preguntar directamente al usuario al cargar el dashboard
           const permissionResult = await Notification.requestPermission()
           if (permissionResult === 'granted') {
             const result = await subscribeToPush(token)
@@ -94,8 +149,6 @@ export default function ProximityAlertListener() {
             }
           }
         } else if (currentPermission === 'granted') {
-          // Ya tiene permiso: garantizar que la suscripción exista y esté
-          // registrada en el backend (repara suscripciones obsoletas).
           await subscribeToPush(token)
         }
       } catch (error) {
@@ -133,7 +186,7 @@ export default function ProximityAlertListener() {
               Prepara tus residuos para entregarlos.
             </p>
             <p className="text-emerald-200 text-xs mt-1">
-              Vehiculo: {banner.data.vehicleCode} ·{' '}
+              Vehículo: {banner.data.vehicleCode} ·{' '}
               {new Date(banner.data.timestamp).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </>
@@ -167,31 +220,83 @@ export default function ProximityAlertListener() {
   )
 }
 
-export function NotificationPermissionButton() {
+/**
+ * Componente Centro de Notificaciones (Bandeja / Dropdown flotante)
+ * Muestra el historial de notificaciones entrantes, badge de no leídas,
+ * estado de lectura y panel de suscripción Web Push VAPID.
+ */
+export function NotificationCenter() {
   const { accessToken } = useAuth()
+  const [isOpen, setIsOpen] = useState(false)
+  const [notifications, setNotifications] = useState<StoredNotification[]>([])
   const [permission, setPermission] = useState<NotificationPermission>(() => (
     typeof Notification === 'undefined' ? 'denied' : Notification.permission
   ))
-  // RF-17: estado de la suscripción Web Push (null = aún cargando)
   const [pushActive, setPushActive] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Refleja los cambios hechos por la auto-suscripción (o por otra pestaña)
+  function reloadNotifications() {
+    setNotifications(getStoredNotifications())
+  }
+
   useEffect(() => {
-    function refresh() {
+    reloadNotifications()
+    function handleUpdate() {
+      reloadNotifications()
+    }
+    window.addEventListener('ecorutas:notifications-updated', handleUpdate)
+    return () => window.removeEventListener('ecorutas:notifications-updated', handleUpdate)
+  }, [])
+
+  useEffect(() => {
+    function refreshPushState() {
       setPermission(typeof Notification === 'undefined' ? 'denied' : Notification.permission)
       getCurrentPushSubscription()
         .then((sub) => setPushActive(Boolean(sub)))
         .catch(() => setPushActive(false))
     }
-    refresh()
-    window.addEventListener('push:subscription-changed', refresh)
-    return () => window.removeEventListener('push:subscription-changed', refresh)
+    refreshPushState()
+    window.addEventListener('push:subscription-changed', refreshPushState)
+    return () => window.removeEventListener('push:subscription-changed', refreshPushState)
   }, [])
 
-  if (pushActive === null) return null
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
 
-  async function enable() {
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  function toggleOpen() {
+    setIsOpen(!isOpen)
+  }
+
+  function markAllAsRead() {
+    const updated = notifications.map((n) => ({ ...n, read: true }))
+    setNotifications(updated)
+    saveStoredNotifications(updated)
+  }
+
+  function clearAll() {
+    setNotifications([])
+    saveStoredNotifications([])
+  }
+
+  function markSingleAsRead(id: string) {
+    const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
+    setNotifications(updated)
+    saveStoredNotifications(updated)
+  }
+
+  async function enablePush() {
     if (!accessToken) return
     setBusy(true)
     try {
@@ -208,32 +313,18 @@ export function NotificationPermissionButton() {
       if (result === 'subscribed') {
         toast.success('Notificaciones push activadas: recibirás alertas aunque cierres la app.')
       } else if (result === 'no-sw') {
-        if (process.env.NODE_ENV !== 'production') {
-          toast.warning('En desarrollo local las notificaciones no se activan porque el Service Worker está desactivado.')
-        } else {
-          toast.error('La app aún se está instalando en tu navegador. Recarga la página e inténtalo de nuevo.')
-        }
+        toast.warning('Notificaciones limitadas a sesión web local.')
       } else {
-        toast.error('Las notificaciones push están desactivadas en el servidor (faltan claves VAPID).')
+        toast.error('Las notificaciones push no están disponibles en el servidor.')
       }
     } catch (err) {
-      console.error('[Push] Error al activar notificaciones:', err)
-      const name = (err as DOMException)?.name
-      if (name === 'NotAllowedError') {
-        toast.error('El navegador bloqueó las notificaciones para este sitio. Habilítalas desde el candado de la barra de direcciones.')
-      } else if (name === 'AbortError') {
-        toast.error('El servicio de notificaciones del navegador no respondió. Verifica tu conexión e inténtalo de nuevo.')
-      } else if (err instanceof ApiError) {
-        toast.error(`No se pudo registrar la suscripción en el servidor: ${err.message}`)
-      } else {
-        toast.error('No se pudo activar las notificaciones push. Revisa tu conexión e inténtalo de nuevo.')
-      }
+      toast.error('No se pudo activar las notificaciones push.')
     } finally {
       setBusy(false)
     }
   }
 
-  async function disable() {
+  async function disablePush() {
     if (!accessToken) return
     setBusy(true)
     try {
@@ -247,54 +338,187 @@ export function NotificationPermissionButton() {
     }
   }
 
-  if (permission === 'denied') {
-    return (
-      <button
-        onClick={() => toast.info('Las notificaciones están bloqueadas para este sitio. Haz clic en el candado de la barra de direcciones y permite las notificaciones.')}
-        title="Notificaciones bloqueadas por el navegador"
-        className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50
-          border border-slate-200 rounded-lg px-2 py-1.5 sm:px-3 hover:bg-slate-100 transition-colors shrink-0"
-      >
-        <BellOff size={13} className="shrink-0" />
-        <span className="hidden sm:inline">Notificaciones bloqueadas</span>
-        <span className="sm:hidden">Bloqueadas</span>
-      </button>
-    )
-  }
-
-  if (pushActive) {
-    return (
-      <button
-        onClick={disable}
-        disabled={busy}
-        title="Recibes alertas de cercanía y retrasos aunque la app esté cerrada"
-        className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50
-          border border-slate-200 rounded-lg px-2 py-1.5 sm:px-3 hover:bg-slate-100 transition-colors disabled:opacity-50 shrink-0"
-      >
-        <BellOff size={13} className="shrink-0" />
-        <span className="hidden sm:inline">Desactivar notificaciones push</span>
-        <span className="sm:hidden">Desactivar push</span>
-      </button>
-    )
+  function formatTime(isoStr: string) {
+    try {
+      const date = new Date(isoStr)
+      const diffMs = Date.now() - date.getTime()
+      const diffMin = Math.floor(diffMs / 60000)
+      if (diffMin < 1) return 'Ahora mismo'
+      if (diffMin < 60) return `Hace ${diffMin} min`
+      const diffHrs = Math.floor(diffMin / 60)
+      if (diffHrs < 24) return `Hace ${diffHrs} h`
+      return date.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return ''
+    }
   }
 
   return (
-    <button
-      onClick={enable}
-      disabled={busy}
-      className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50
-        border border-emerald-200 rounded-lg px-2 py-1.5 sm:px-3 hover:bg-emerald-100 transition-colors disabled:opacity-50 shrink-0"
-    >
-      <Bell size={13} className="shrink-0" />
-      {busy ? (
-        <span>Activando…</span>
-      ) : (
-        <>
-          <span className="hidden sm:inline">Activar notificaciones de proximidad</span>
-          <span className="sm:hidden">Activar alertas</span>
-        </>
-      )}
-    </button>
-  )
+    <div className="relative" ref={dropdownRef}>
+      {/* Botón de Campana con Badge */}
+      <button
+        onClick={toggleOpen}
+        title="Centro de Notificaciones y Alertas"
+        className={`relative p-2 rounded-xl border transition-all active:scale-95 flex items-center justify-center ${
+          isOpen
+            ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm'
+            : unreadCount > 0
+            ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+        }`}
+      >
+        <Bell size={18} />
 
+        {/* Badge de No Leídas */}
+        {unreadCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 bg-red-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white shadow-sm animate-pulse">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown / Bandeja Flotante */}
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+          {/* Header de la Bandeja */}
+          <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell size={16} className="text-teal-400" />
+              <span className="text-xs font-bold uppercase tracking-wider">Centro de Notificaciones</span>
+              {unreadCount > 0 && (
+                <span className="bg-teal-500/20 text-teal-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-teal-500/30">
+                  {unreadCount} nuevas
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Acciones rápidas de la lista */}
+          {notifications.length > 0 && (
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <button
+                onClick={markAllAsRead}
+                className="flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-900 transition-colors"
+              >
+                <CheckCheck size={14} />
+                <span>Marcar leídas</span>
+              </button>
+              <button
+                onClick={clearAll}
+                className="flex items-center gap-1 text-slate-400 hover:text-rose-600 transition-colors"
+              >
+                <Trash2 size={13} />
+                <span>Limpiar</span>
+              </button>
+            </div>
+          )}
+
+          {/* Contenido / Lista de Notificaciones */}
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+            {notifications.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <BellOff size={20} />
+                </div>
+                <p className="text-xs font-bold text-slate-700">Sin notificaciones aún</p>
+                <p className="text-[11px] text-slate-400 mt-1 max-w-[220px] mx-auto">
+                  Aquí aparecerán las alertas de cercanía del camión recolector y los avisos de retraso en tus rutas.
+                </p>
+              </div>
+            ) : (
+              notifications.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => markSingleAsRead(item.id)}
+                  className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer ${
+                    item.read ? 'bg-white hover:bg-slate-50/80 opacity-75' : 'bg-teal-50/30 hover:bg-teal-50/60'
+                  }`}
+                >
+                  <div
+                    className={`shrink-0 p-2 rounded-xl mt-0.5 ${
+                      item.type === 'proximity'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {item.type === 'proximity' ? <Truck size={16} /> : <Clock size={16} />}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <p className={`text-xs ${item.read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
+                        {item.title}
+                      </p>
+                      {!item.read && (
+                        <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" title="No leída" />
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                      {item.body}
+                    </p>
+
+                    <p className="text-[10px] text-slate-400 font-medium mt-1">
+                      {formatTime(item.timestamp)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer de Estado del Permiso Push VAPID */}
+          <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    permission === 'granted' && pushActive
+                      ? 'bg-emerald-500'
+                      : permission === 'granted'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500'
+                  }`}
+                />
+                <span className="font-semibold text-slate-700">
+                  {permission === 'granted' && pushActive
+                    ? 'Push en segundo plano activo'
+                    : permission === 'granted'
+                    ? 'Notificaciones del navegador permitidas'
+                    : 'Notificaciones bloqueadas'}
+                </span>
+              </div>
+
+              {permission !== 'denied' && (
+                pushActive ? (
+                  <button
+                    onClick={disablePush}
+                    disabled={busy}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-700 underline"
+                  >
+                    Desactivar Push
+                  </button>
+                ) : (
+                  <button
+                    onClick={enablePush}
+                    disabled={busy}
+                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline"
+                  >
+                    Activar Push
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
+

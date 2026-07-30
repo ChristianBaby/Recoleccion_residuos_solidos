@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import ProximityAlertListener, { NotificationPermissionButton } from '@/components/ProximityAlertListener'
+import ProximityAlertListener, { NotificationCenter } from '@/components/ProximityAlertListener'
 import { Menu, X, Settings, User, LogOut } from 'lucide-react'
 
 interface NavItem {
@@ -187,7 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {user?.role === 'CITIZEN' && <NotificationPermissionButton />}
+              <NotificationCenter />
               
               <span className="hidden sm:inline-block text-[9px] font-extrabold tracking-wider px-2 py-1 bg-slate-100 text-slate-600 rounded uppercase border border-slate-200">
                 {user?.role === 'CITIZEN' ? 'Ciudadano' : user?.role === 'OPERATOR' ? 'Operador' : 'Administrador'}
