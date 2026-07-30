@@ -263,6 +263,31 @@ Entidades principales: `User`, `Zone`, `Route`, `Waypoint`, `Vehicle`, `RouteExe
 
 ---
 
+### 🗄️ Diccionario de Tablas de la Base de Datos (PostgreSQL)
+
+La base de datos se gestiona mediante **Prisma ORM** sobre PostgreSQL. A continuación se detalla la función y propósito de cada una de las 16 tablas del sistema:
+
+| Tabla en BD | Modelo Prisma | Propósito y Descripción de Uso |
+|---|---|---|
+| 👤 **`users`** | `User` | Almacena a los usuarios del sistema (Administradores, Operadores y Ciudadanos). Guarda credenciales cifradas (bcrypt), datos personales (Nombre, DNI, Email, Teléfono), rol (`ADMIN`, `OPERATOR`, `CITIZEN`) y la zona asignada. |
+| 🗺️ **`zones`** | `Zone` | Representa los sectores o zonas geográficas del distrito de Poroy. Almacena la geometría del polígono GeoJSON, nombre, distrito, color representativo para el mapa y estado activo/inactivo. |
+| 📍 **`routes`** | `Route` | Guarda la planificación de las rutas de recolección de residuos. Asocia cada ruta a una zona, un vehículo asignado, un operador responsable, los días de la semana y el horario de inicio. |
+| 🪧 **`waypoints`** | `Waypoint` | Almacena los puntos de parada ordenados que componen cada ruta. Guarda las coordenadas GPS (latitud/longitud), nombre de la parada, orden de recorrido y tiempo estimado de llegada (ETA). |
+| 🚛 **`vehicles`** | `Vehicle` | Catálogo de la flota de vehículos de recolección municipal. Guarda la placa, tipo (compactador, camión baranda, etc.), marca, capacidad en toneladas y estado operacional (`AVAILABLE`, `IN_ROUTE`, `MAINTENANCE`, `INACTIVE`). |
+| ⏱️ **`route_executions`** | `RouteExecution` | Registro histórico de las salidas o turnos ejecutados para cada ruta. Guarda la hora exacta de inicio y fin, el operador en turno, vehículo utilizado, estado de la ejecución y retrasos reportados. |
+| 📡 **`gps_tracks`** | `GpsTrack` | Almacena los puntos de coordenadas GPS transmitidos en tiempo real por el smartphone del operador vía WebSockets durante el seguimiento de su ruta (latitud, longitud, velocidad y marca de tiempo). |
+| ⚖️ **`collection_records`** | `CollectionRecord` | Registra el pesaje de residuos recolectados (kg aproximados) ingresado por el operador al finalizar la ruta, desglosado por categorías según la Norma Técnica Peruana NTP 900.058 (orgánico, reciclable, no reciclable, peligroso). |
+| 🚨 **`incidents`** | `Incident` | Almacena los reportes de incidencias registradas por ciudadanos y operadores (acumulación de basura, contenedor dañado, etc.). Contiene el código de seguimiento `INC-YYYY-XXXXX`, estado de atención (`OPEN`, `IN_REVIEW`, `RESOLVED`, `CLOSED`), foto adjunta y ubicación GPS. |
+| ♻️ **`waste_types`** | `WasteType` | Catálogo maestro de categorías de residuos sólidos. Guarda el nombre, clasificación, código de color oficial del contenedor, ejemplos cotidianos e instrucciones de segregación. |
+| 🔗 **`route_waste_types`** | `RouteWasteType` | Tabla intermedia que conecta las Rutas con los Tipos de Residuos, especificando qué categorías de residuos se recolectan en cada ruta según el día de la semana. |
+| 📚 **`learn_visits`** | `LearnVisit` | Almacena las visitas e interacciones de los ciudadanos en la sección educativa *"Aprende a segregar"*, alimentando los indicadores de educación ambiental y participación ciudadana (RF-16). |
+| 📱 **`push_subscriptions`** | `PushSubscription` | Guarda los endpoints y claves criptográficas VAPID (`p256dh`, `auth`) otorgadas por el navegador/celular de los usuarios para la entrega de notificaciones WebPush con la app cerrada (RF-17). |
+| 🔑 **`refresh_tokens`** | `RefreshToken` | Registra los tokens de refresco JWT para el mantenimiento de sesiones continuas y rotación segura de credenciales de autenticación. |
+| 📜 **`audit_logs`** | `AuditLog` | Registro inmutable de auditoría del sistema. Almacena las acciones críticas realizadas por los administradores y usuarios (creación, edición o eliminación de entidades), fecha, hora, dirección IP y payload afectado. |
+| 🛠️ **`_prisma_migrations`** | `—` | Tabla del sistema generada y administrada por Prisma ORM para el control de versiones y trazabilidad del esquema de base de datos PostgreSQL. |
+
+---
+
 ## 📱 Arquitectura e Integración PWA (Progressive Web App)
 
 El sistema integra capacidades de **Progressive Web App (PWA)** que permiten instalar la aplicación en teléfonos móviles y computadoras como si fuera una app nativa, con soporte para funcionamiento offline y notificaciones push en segundo plano (RF-17).
