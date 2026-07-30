@@ -83,8 +83,10 @@ function IncidentsPageContent() {
     try {
       const params = new URLSearchParams()
       if (filterStatus !== 'ALL') params.set('status', filterStatus)
-      if (isAdmin && filterZoneId) params.set('zoneId', filterZoneId)
-      const res = await api.get<ApiResponse<Incident[]>>(`/incidents?${params}`, accessToken)
+      if (isAdmin && filterZoneId && filterZoneId.trim() !== '') {
+        params.set('zoneId', filterZoneId.trim())
+      }
+      const res = await api.get<ApiResponse<Incident[]>>(`/incidents?${params.toString()}`, accessToken)
       setIncidents(res.data ?? [])
     } catch {
       toast.error('Error al cargar las incidencias')

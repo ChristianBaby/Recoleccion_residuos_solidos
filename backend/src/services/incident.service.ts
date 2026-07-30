@@ -10,12 +10,16 @@ export async function listIncidents(
   filters?: { status?: string; zoneId?: string },
 ) {
   const isAdmin = role === 'ADMIN'
+  const isOperator = role === 'OPERATOR'
 
-  if (isAdmin) {
+  const cleanStatus = filters?.status?.trim()
+  const cleanZoneId = filters?.zoneId?.trim()
+
+  if (isAdmin || isOperator) {
     return prisma.incident.findMany({
       where: {
-        ...(filters?.status && { status: filters.status as any }),
-        ...(filters?.zoneId && { citizen: { zoneId: filters.zoneId } }),
+        ...(cleanStatus && cleanStatus !== 'ALL' && { status: cleanStatus as any }),
+        ...(cleanZoneId && { citizen: { zoneId: cleanZoneId } }),
       },
       include: {
         citizen: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -24,7 +28,7 @@ export async function listIncidents(
     })
   }
 
-  // Ciudadano/Operador: ver incidencias de su zona + las de creadores con rol ADMIN u OPERATOR
+  // Ciudadano: ver incidencias de su zona + las de creadores con rol ADMIN u OPERATOR
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { zoneId: true } })
   const zoneQuery = me?.zoneId ? { citizen: { zoneId: me.zoneId } } : null
 
@@ -34,7 +38,7 @@ export async function listIncidents(
         ...(zoneQuery ? [zoneQuery] : []),
         { citizen: { role: { in: ['ADMIN', 'OPERATOR'] } } }
       ],
-      ...(filters?.status && { status: filters.status as any }),
+      ...(cleanStatus && cleanStatus !== 'ALL' && { status: cleanStatus as any }),
     },
     include: {
       citizen: { select: { id: true, firstName: true, lastName: true, email: true } },
